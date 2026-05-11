@@ -1,0 +1,34 @@
+POST http://localhost:5000/api/auth/register
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary123
+
+------WebKitFormBoundary123
+Content-Disposition: form-data; name="name"
+
+John Mentor
+------WebKitFormBoundary123
+Content-Disposition: form-data; name="email"
+
+mentor1@gmail.com
+------WebKitFormBoundary123
+Content-Disposition: form-data; name="password"
+
+Mentor@123
+------WebKitFormBoundary123
+Content-Disposition: form-data; name="role"
+
+mentor
+------WebKitFormBoundary123
+Content-Disposition: form-data; name="certificate"; filename="certificate.pdf"
+Content-Type: application/pdf
+
+< ./certificate.pdf
+------WebKitFormBoundary123--
+###
+PUT http://localhost:5000/api/admin/mentor/69ee625b9f3f8c1d86f8a262/approve
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZWJhNjYyMjc4YzU5NTJkYzcwOTNmZiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NzIzMDgwNiwiZXhwIjoxNzc3ODM1NjA2fQ.7n_bnR2oG6yGucKgpawWwj59kMmUjuNuHXZLngPxJ-s
+Content-Type: application/json
+
+###
+PUT http://localhost:5000/api/admin/mentor/69d3ad52436452ea1244d437/reject
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNhOTQzNDM2NDUyZWExMjQ0ZDNmYiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NTQ4MDE4NCwiZXhwIjoxNzc2MDg0OTg0fQ.qrHWY2T4v6SvBB_TUAfmNJNH2WpXnUuymEnWGZEgmog
+Content-Type: application/json

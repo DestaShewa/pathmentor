@@ -1,0 +1,544 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import api from "@/services/api";
+import { toast } from "sonner";
+import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
+import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { GlassButton } from "@/components/ui/GlassButton";
+import {
+  BookOpen, Play, CheckCircle2, Lock,
+  ChevronDown, ChevronUp, Trophy, ArrowLeft,
+  FileText, Image, Video, Music, File, ExternalLink
+} from "lucide-react";
+
+import { handleSidebarNav } from "@/lib/navHelper";
+
+interface Level {
+  _id: string;
+  title: string;
+  order: number;
+  isUnlocked?: boolean;
+  completedLessons?: number;
+  score?: number;
+  lessons?: Lesson[];
+}
+
+interface Lesson {
+  _id: string;
+  title: string;
+  description?: string;
+  content?: string;
+  videoUrl?: string;
+  order: number;
+  attachments?: Array<{
+    name: string;
+    url: string;
+    type: string;
+    mimeType?: string;
+    size?: number;
+  }>;
+}
+
+interface Quiz {
+  _id: string;
+  questions: { question: string; options: string[]; correctAnswer: number }[];
+}
+
+const Lessons = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [levels, setLevels] = useState<Level[]>([]);
+  const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  const [quiz, setQuiz] = useState<Quiz | null>(null);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState(0);
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
+  const [courseTitle, setCourseTitle] = useState("My Course");
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { navigate("/auth"); return; }
+    fetchData();
+  }, [navigate]);
+
+  const fetchData = async () => {
+    try {
+      const profileRes = await api.get("/users/profile");
+      const userData = profileRes.data.user;
+      setUser(userData);
+
+      const courseId = userData.learningProfile?.course?.id;
+      const title = userData.learningProfile?.course?.title;
+      if (title) setCourseTitle(title);
+
+      if (!courseId) { 
+        setLoading(false); 
+        return; 
+      }
+
+      // Get roadmap (levels + lessons)
+      try {
+        const roadmapRes = await api.get(`/courses/${courseId}/roadmap`);
+        const levelsData: Level[] = roadmapRes.data.levels || roadmapRes.data || [];
+
+        // Get unlock status
+        try {
+          const unlockRes = await api.get(`/levels/${courseId}/unlock-status`);
+          if (unlockRes.data.success) {
+            const unlockMap = new Map((unlockRes.data.levels || []).map((l: Level) => [l._id, l]));
+            levelsData.forEach(lv => {
+              const u = unlockMap.get(lv._id) as Level | undefined;
+              lv.isUnlocked = u ? u.isUnlocked : lv.order === 1;
+              lv.completedLessons = u?.completedLessons || 0;
+              lv.score = u?.score || 0;
+            });
+          } else {
+            // Fallback: first level is always unlocked
+            levelsData.forEach(lv => { 
+              lv.isUnlocked = lv.order === 1; 
+              lv.completedLessons = 0;
+              lv.score = 0;
+            });
+          }
+        } catch (unlockErr) {
+          console.log("Unlock status fetch failed, using fallback:", unlockErr);
+          levelsData.forEach(lv => { 
+            lv.isUnlocked = lv.order === 1; 
+            lv.completedLessons = 0;
+            lv.score = 0;
+          });
+        }
+
+        setLevels(levelsData);
+
+        // Auto-expand first unlocked level
+        const firstUnlocked = levelsData.find(l => l.isUnlocked);
+        if (firstUnlocked) setExpandedLevel(firstUnlocked._id);
+
+        // Get completed lessons for this user
+        try {
+          const progressRes = await api.get(`/progress/course/${courseId}`);
+          if (progressRes.data.success && progressRes.data.completedLessonIds) {
+            setCompletedLessons(new Set(progressRes.data.completedLessonIds));
+          }
+        } catch (progressErr) {
+          console.log("Progress fetch failed (non-critical):", progressErr);
+        }
+
+      } catch (roadmapErr) {
+        console.error("Roadmap fetch failed:", roadmapErr);
+        // Show error message to user
+        setLevels([]);
+      }
+
+    } catch (profileErr) {
+      console.error("Profile fetch failed:", profileErr);
+      navigate("/auth");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteLesson = async (lessonId: string) => {
+    if (completing || completedLessons.has(lessonId)) return;
+    setCompleting(true);
+    try {
+      const response = await api.post(`/progress/lesson/${lessonId}/complete`);
+      if (response.data.success) {
+        setCompletedLessons(prev => new Set([...prev, lessonId]));
+        // Show success toast with XP earned
+        const xpEarned = response.data.xpEarned || 0;
+        toast.success(`Lesson completed! +${xpEarned} XP earned 🎉`);
+      }
+    } catch (err: any) {
+      if (err.response?.status !== 400) { // 400 means already completed, which is fine
+        toast.error("Failed to mark lesson as complete");
+      } else {
+        // Already completed
+        setCompletedLessons(prev => new Set([...prev, lessonId]));
+      }
+    } finally { 
+      setCompleting(false); 
+    }
+  };
+
+  const handleOpenLesson = async (lesson: Lesson, levelId: string) => {
+    setSelectedLesson(lesson);
+    setSelectedLevelId(levelId);
+    setShowQuiz(false);
+    setQuiz(null);
+    setQuizAnswers([]);
+    setQuizSubmitted(false);
+    setQuizScore(0);
+    try {
+      const res = await api.get(`/quizzes/lesson/${lesson._id}`);
+      if (res.data.data) setQuiz(res.data.data);
+    } catch { /* no quiz for this lesson */ }
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (!quiz) return;
+    let correct = 0;
+    quiz.questions.forEach((q, i) => {
+      if (quizAnswers[i] === q.correctAnswer) correct++;
+    });
+    const score = Math.round((correct / quiz.questions.length) * 100);
+    setQuizScore(score);
+    setQuizSubmitted(true);
+    if (selectedLevelId) {
+      try {
+        await api.post("/progress/level/score", { levelId: selectedLevelId, score });
+      } catch { /* ignore */ }
+    }
+  };
+
+  const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const userName = user?.name || "Learner";
+  const userEmail = user?.email || "";
+
+  return (
+    <div className="min-h-screen relative bg-background text-white">
+      <ParticlesBackground />
+      <DashboardTopNav
+        userName={userName}
+        userEmail={userEmail}
+        onSignOut={handleSignOut}
+        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+      <DashboardSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        activeView="lessons"
+        onViewChange={(v) => handleSidebarNav(v, navigate)}
+      />
+
+      <main className={`relative z-10 pt-24 pb-24 transition-all duration-300 ${sidebarCollapsed ? "lg:pl-24" : "lg:pl-72"}`}>
+        <div className="max-w-5xl mx-auto px-4 md:px-6">
+          <AnimatePresence mode="wait">
+
+            {/* ── LESSON DETAIL VIEW ── */}
+            {selectedLesson ? (
+              <motion.div key="detail" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+                <GlassButton variant="ghost" size="sm" onClick={() => setSelectedLesson(null)}>
+                  <ArrowLeft size={16} className="mr-1" /> Back to Levels
+                </GlassButton>
+
+                <GlassCard className="p-8 space-y-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <h1 className="text-3xl font-bold mb-2">{selectedLesson.title}</h1>
+                      {selectedLesson.description && (
+                        <p className="text-muted-foreground">{selectedLesson.description}</p>
+                      )}
+                    </div>
+                    {completedLessons.has(selectedLesson._id) ? (
+                      <div className="flex items-center gap-2 text-green-400 shrink-0">
+                        <CheckCircle2 size={20} />
+                        <span className="text-sm font-medium">Completed</span>
+                      </div>
+                    ) : (
+                      <GlassButton variant="primary" size="sm" onClick={() => handleCompleteLesson(selectedLesson._id)} disabled={completing}>
+                        {completing ? "Saving..." : "Mark Complete"}
+                      </GlassButton>
+                    )}
+                  </div>
+
+                  {/* Video */}
+                  {selectedLesson.videoUrl && (
+                    <div className="rounded-xl overflow-hidden aspect-video bg-black">
+                      <iframe
+                        src={selectedLesson.videoUrl}
+                        className="w-full h-full"
+                        allowFullScreen
+                        title={selectedLesson.title}
+                      />
+                    </div>
+                  )}
+
+                  {/* Text content */}
+                  {selectedLesson.content ? (
+                    <div
+                      className="prose prose-invert max-w-none leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: selectedLesson.content }}
+                    />
+                  ) : !selectedLesson.videoUrl && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <BookOpen size={48} className="mx-auto mb-4 opacity-30" />
+                      <p>Lesson content will be available soon.</p>
+                    </div>
+                  )}
+
+                  {/* Attachments */}
+                  {selectedLesson.attachments && selectedLesson.attachments.length > 0 && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold">Lesson Materials</h3>
+                      <div className="grid gap-3">
+                        {selectedLesson.attachments.map((attachment, idx) => (
+                          <a
+                            key={idx}
+                            href={`http://localhost:5001${attachment.url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group"
+                          >
+                            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+                              {attachment.type === "pdf" && <FileText size={20} className="text-primary" />}
+                              {attachment.type === "doc" && <FileText size={20} className="text-blue-400" />}
+                              {attachment.type === "image" && <Image size={20} className="text-green-400" />}
+                              {attachment.type === "video" && <Video size={20} className="text-purple-400" />}
+                              {attachment.type === "audio" && <Music size={20} className="text-orange-400" />}
+                              {!["pdf", "doc", "image", "video", "audio"].includes(attachment.type) && <File size={20} className="text-gray-400" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm group-hover:text-primary transition-colors truncate">
+                                {attachment.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {attachment.type.toUpperCase()} • {attachment.size ? `${Math.round(attachment.size / 1024)} KB` : "Unknown size"}
+                              </p>
+                            </div>
+                            <ExternalLink size={16} className="text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </GlassCard>
+
+                {/* Quiz */}
+                {quiz && (
+                  <GlassCard className="p-8">
+                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                      <Trophy size={20} className="text-primary" /> Lesson Quiz
+                    </h2>
+
+                    {!showQuiz ? (
+                      <div className="text-center py-6">
+                        <p className="text-muted-foreground mb-4">
+                          {quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""} to test your knowledge
+                        </p>
+                        {quizSubmitted ? (
+                          <div className={`text-2xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
+                            Score: {quizScore}% {quizScore >= 80 ? "— Level unlocked! 🎉" : "— Need 80% to unlock next level"}
+                          </div>
+                        ) : (
+                          <GlassButton variant="primary" glow onClick={() => setShowQuiz(true)}>
+                            Start Quiz
+                          </GlassButton>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {quiz.questions.map((q, qi) => (
+                          <div key={qi} className="space-y-3">
+                            <p className="font-semibold">{qi + 1}. {q.question}</p>
+                            <div className="grid gap-2">
+                              {q.options.map((opt, oi) => {
+                                const isSelected = quizAnswers[qi] === oi;
+                                const isCorrect = quizSubmitted && oi === q.correctAnswer;
+                                const isWrong = quizSubmitted && isSelected && oi !== q.correctAnswer;
+                                return (
+                                  <button
+                                    key={oi}
+                                    disabled={quizSubmitted}
+                                    onClick={() => {
+                                      const updated = [...quizAnswers];
+                                      updated[qi] = oi;
+                                      setQuizAnswers(updated);
+                                    }}
+                                    className={`p-3 rounded-xl text-left text-sm border transition-all ${
+                                      isCorrect ? "border-green-500 bg-green-500/10 text-green-300"
+                                      : isWrong ? "border-red-500 bg-red-500/10 text-red-300"
+                                      : isSelected ? "border-primary bg-primary/10"
+                                      : "border-white/10 hover:border-white/20 bg-white/5"
+                                    }`}
+                                  >
+                                    <span className="font-bold mr-2">{String.fromCharCode(65 + oi)}.</span>
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+
+                        {!quizSubmitted ? (
+                          <GlassButton
+                            variant="primary"
+                            onClick={handleSubmitQuiz}
+                            disabled={quizAnswers.length < quiz.questions.length}
+                          >
+                            Submit Quiz
+                          </GlassButton>
+                        ) : (
+                          <div className={`text-xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
+                            Score: {quizScore}% {quizScore >= 80 ? "— Level unlocked! 🎉" : "— Need 80% to unlock next level"}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </GlassCard>
+                )}
+              </motion.div>
+            ) : (
+
+              /* ── LEVELS LIST VIEW ── */
+              <motion.div key="list" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+                <div className="mb-6">
+                  <h1 className="text-3xl font-bold mb-1">{courseTitle}</h1>
+                  <p className="text-muted-foreground text-sm">
+                    7 levels from Awareness to Mastery. Score ≥80% on each quiz to unlock the next level.
+                  </p>
+                </div>
+
+                {levels.length === 0 ? (
+                  <GlassCard className="p-12 text-center text-muted-foreground">
+                    <BookOpen size={48} className="mx-auto mb-4 opacity-30" />
+                    <p>No course content yet. Check back soon!</p>
+                  </GlassCard>
+                ) : (
+                  levels.map((level, idx) => {
+                    const isLocked = !level.isUnlocked;
+                    const lessons = level.lessons || [];
+                    const completedCount = lessons.filter(l => completedLessons.has(l._id)).length;
+                    const pct = lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : 0;
+                    const isExpanded = expandedLevel === level._id;
+
+                    return (
+                      <motion.div
+                        key={level._id}
+                        initial={{ opacity: 0, x: idx % 2 === 0 ? -20 : 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                      >
+                        <GlassCard className={`overflow-hidden ${isLocked ? "opacity-50" : ""}`} hover={!isLocked}>
+                          <div
+                            className={`p-6 ${!isLocked ? "cursor-pointer" : "cursor-not-allowed"}`}
+                            onClick={() => !isLocked && setExpandedLevel(isExpanded ? null : level._id)}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-lg font-bold ${
+                                isLocked ? "bg-muted text-muted-foreground"
+                                : pct === 100 ? "bg-green-500/20 text-green-400"
+                                : "bg-primary/20 text-primary"
+                              }`}>
+                                {isLocked ? <Lock size={20} /> : pct === 100 ? <CheckCircle2 size={24} /> : level.order}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <span className="text-xs text-primary font-bold uppercase tracking-wider">Level {level.order}</span>
+                                  {!isLocked && pct === 100 && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Complete</span>}
+                                  {!isLocked && pct > 0 && pct < 100 && <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">In Progress</span>}
+                                </div>
+                                <h3 className="text-xl font-bold">{level.title}</h3>
+                                {!isLocked && lessons.length > 0 && (
+                                  <div className="mt-2">
+                                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                                      <span>{completedCount}/{lessons.length} lessons</span>
+                                      <span>{pct}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                      <motion.div
+                                        className="h-full bg-gradient-to-r from-primary to-secondary"
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${pct}%` }}
+                                        transition={{ duration: 0.8 }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {!isLocked && (
+                                <div className="shrink-0 text-muted-foreground">
+                                  {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded lessons */}
+                          <AnimatePresence>
+                            {isExpanded && !isLocked && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-6 pb-6 border-t border-white/10 pt-4">
+                                  {lessons.length === 0 ? (
+                                    <p className="text-muted-foreground text-sm italic">No lessons added yet.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {lessons.map(lesson => {
+                                        const done = completedLessons.has(lesson._id);
+                                        return (
+                                          <button
+                                            key={lesson._id}
+                                            onClick={() => handleOpenLesson(lesson, level._id)}
+                                            className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all text-left group"
+                                          >
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${done ? "bg-green-500/20 text-green-400" : "bg-primary/10 text-primary"}`}>
+                                              {done ? <CheckCircle2 size={16} /> : <Play size={14} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium group-hover:text-primary transition-colors truncate">{lesson.title}</p>
+                                              {lesson.description && (
+                                                <p className="text-xs text-muted-foreground truncate">{lesson.description}</p>
+                                              )}
+                                            </div>
+                                            {lesson.videoUrl && (
+                                              <span className="text-xs text-muted-foreground shrink-0">Video</span>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </GlassCard>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+
+      <MobileBottomNav />
+    </div>
+  );
+};
+
+export default Lessons;

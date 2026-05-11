@@ -1,0 +1,170 @@
+###
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Hewan",
+  "email": "admin@gmail.com",
+  "password": "Admin@1234",
+  "role": "admin"
+}
+###Login
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json 
+
+{
+  "email": "admin@gmail.com",
+  "password":"Admin@1234"
+}
+
+### Get Profile (Protected)
+GET http://localhost:5000/api/users/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNDdkNWU2MDAxN2MxYTVlMjQzMyIsInJvbGUiOiJtZW50b3IiLCJpYXQiOjE3NzQ0MjYzMzUsImV4cCI6MTc3NTAzMTEzNX0.59PP3AjFDiABsGK1ThIxh69vWOLb7nNo6e9fZFRTpxI
+###Get
+GET http://localhost:5000/api/users/profile
+
+###Put
+PUT http://localhost:5000/api/users/change-password
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNDdkNWU2MDAxN2MxYTVlMjQzMyIsInJvbGUiOiJtZW50b3IiLCJpYXQiOjE3NzQ0MjYzMzUsImV4cCI6MTc3NTAzMTEzNX0.59PP3AjFDiABsGK1ThIxh69vWOLb7nNo6e9fZFRTpxI
+
+{
+  "currentPassword": "Mentor!1234",
+  "newPassword": "Mentor@1234"
+}
+
+###Get
+GET http://localhost:5000/api/admin/dashboard
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNTEyNWU2MDAxN2MxYTVlMjQzNyIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDQyNjUwMCwiZXhwIjoxNzc1MDMxMzAwfQ.kC-VNXVqNoCtR0sOCCfZKd2TdOqlRfgjOTz_yvjfZiI
+###GET
+GET http://localhost:5000/api/admin/pending-mentors
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNTEyNWU2MDAxN2MxYTVlMjQzNyIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDQyNjUwMCwiZXhwIjoxNzc1MDMxMzAwfQ.kC-VNXVqNoCtR0sOCCfZKd2TdOqlRfgjOTz_yvjfZiI
+
+### Create Course
+POST http://localhost:5000/api/courses
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNhOTQzNDM2NDUyZWExMjQ0ZDNmYiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NTQ5OTk4MiwiZXhwIjoxNzc2MTA0NzgyfQ.Rx8x9g9Wv_Sbz8wr9iVzp31ggygFkFgCtnAI87B1odI
+
+{
+  "title": "Frontend Development",
+  "description": "Learn HTML CSS JS React",
+  "category": "Web Development"
+}
+### GET LEVELS
+GET http://localhost:5000/api/levels/course/69d3fae983b5edcf25093138
+Content-Type: application/json
+
+### Create Lesson
+POST http://localhost:5000/api/lessons
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNhOTQzNDM2NDUyZWExMjQ0ZDNmYiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NTUwMDE4NSwiZXhwIjoxNzc2MTA0OTg1fQ.99HI-WW54l9u23TkNjStHXXM2PW9JPSlAo3dVBX7qs0
+ 
+ {
+ "title": "Introduction to CSS",
+ "description": "HTML basics",
+ "content": "HTML is the structure of web pages",
+ "videoUrl": "https://youtube.com/example",
+ "order": 1,
+ "levelId": "69d3fae983b5edcf2509313b",
+ "courseId": "69d3fae983b5edcf25093138"
+}
+
+### Get Lessons
+GET http://localhost:5000/api/lessons/level/69d3fae983b5edcf2509313b
+
+### Create Quiz
+POST http://localhost:5000/api/quizzes
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNTEyNWU2MDAxN2MxYTVlMjQzNyIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDQyNjY4MywiZXhwIjoxNzc1MDMxNDgzfQ.0Rn9549CwNSvjQkpecd4ZO_SdICqvKPyEjTAJO9CMAA
+
+{
+ "lessonId": "69b1583ebc1d255175f73141",
+ "questions":[
+   {
+     "question":"What does HTML stand for?",
+     "options":[
+       "Hyper Text Markup Language",
+       "Home Tool Markup Language",
+       "Hyperlinks Text Mark Language",
+       "Hyper Tool Multi Language"
+     ],
+     "correctAnswer":0
+   },
+   {
+     "question":"Which tag creates a paragraph?",
+     "options":[
+       "<p>",
+       "<h1>",
+       "<div>",
+       "<span>"
+     ],
+     "correctAnswer":0
+   }
+ ]
+}
+###
+GET http://localhost:5000/api/courses/69b154577925d383e4c08c42/roadmap
+Content-Type: application/json
+
+###
+POST http://localhost:5000/api/progress/lesson/69d3fc4283b5edcf2509314d/complete
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNmNGUzODNiNWVkY2YyNTA5MzEyYyIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1NTAwNjAwLCJleHAiOjE3NzYxMDU0MDB9.Tw40EI1eNU_mnLGCMRaS_0UBjjoZRl21gDGclx7WswY
+ 
+### Submit Score - FAIL CASE
+POST http://localhost:5000/api/progress/level/score
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNmNGUzODNiNWVkY2YyNTA5MzEyYyIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1NTAwODY3LCJleHAiOjE3NzYxMDU2Njd9.ijTIOZpcjklFQ1pEiJivECNFvs1Jh9wFzz4woNogRPI
+
+{
+  "levelId": "69d3fae983b5edcf2509313b",
+  "score": 95
+}
+
+### Submit Score - PASS CASE
+POST http://localhost:5000/api/progress/level/score
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZDNmNGUzODNiNWVkY2YyNTA5MzEyYyIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1NTAwODY3LCJleHAiOjE3NzYxMDU2Njd9.ijTIOZpcjklFQ1pEiJivECNFvs1Jh9wFzz4woNogRPI
+
+{
+  "levelId": "69d3fae983b5edcf2509313c",
+  "score": 85
+}
+### Check Levels Unlock Status
+GET http://localhost:5000/api/levels/course/COURSE_ID
+Authorization: Bearer YOUR_TOKEN
+
+
+### Try Access Next Level Lessons
+GET http://localhost:5000/api/lessons/level/NEXT_LEVEL_ID
+Authorization: Bearer YOUR_TOKEN
+
+
+###
+GET http://localhost:5000/api/progress/course/69b154577925d383e4c08c42
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTYyODk4YmUzZTUxNzFkZDM0ZWVjMSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzczODMzNTY1LCJleHAiOjE3NzQ0MzgzNjV9.5xH8r3p3I2y9jg0m7e8XcmagYR0PTm3mnvMCNMJc2YU
+
+###
+GET http://localhost:5000/api/progress/xp
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTYyODk4YmUzZTUxNzFkZDM0ZWVjMSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzczODMzNjMzLCJleHAiOjE3NzQ0Mzg0MzN9.4PWOvhhcyQOBGM4zGY-IUA82RYDKPeaWX8wf4rUhwb4
+
+###
+GET http://localhost:5000/api/progress/course/69b154577925d383e4c08c42
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTYyODk4YmUzZTUxNzFkZDM0ZWVjMSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzczOTA0MjM5LCJleHAiOjE3NzQ1MDkwMzl9.E-bEk0ICZ9YR_PUUk1sdtpVB8kE9F8LXFoUo4t9Xgpk
+
+###
+GET http://localhost:5000/api/leaderboard
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTYyODk4YmUzZTUxNzFkZDM0ZWVjMSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzczOTEwOTA1LCJleHAiOjE3NzQ1MTU3MDV9.9-nQww6LfY9kNQgz8gziBT3Xcg5kC5uexMRsiAUWsNk
+
+###
+POST http://localhost:5000/api/announcements
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTQxNTEyNWU2MDAxN2MxYTVlMjQzNyIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDQyNjY4MywiZXhwIjoxNzc1MDMxNDgzfQ.0Rn9549CwNSvjQkpecd4ZO_SdICqvKPyEjTAJO9CMAA
+Content-Type: application/json
+
+{
+  "title": "AI Workshop",
+  "message": "Join tomorrow at 2PM",
+  "course": "69b154577925d383e4c08c42"
+}
+###
+POST /api/progress/lesson/:id/complete
