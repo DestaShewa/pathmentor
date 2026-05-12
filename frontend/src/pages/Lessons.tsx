@@ -62,10 +62,15 @@ const Lessons = () => {
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
+  const [quizResult, setQuizResult] = useState<{ levelCompleted: boolean; message: string } | null>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [courseTitle, setCourseTitle] = useState("My Course");
+
+  // Track time spent on current lesson
+  const [lessonOpenedAt, setLessonOpenedAt] = useState<number | null>(null);
+  const MIN_LESSON_SECONDS = 30; // minimum engagement time
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -153,24 +158,38 @@ const Lessons = () => {
 
   const handleCompleteLesson = async (lessonId: string) => {
     if (completing || completedLessons.has(lessonId)) return;
+
+    // Calculate time spent on this lesson
+    const timeSpentSeconds = lessonOpenedAt
+      ? Math.floor((Date.now() - lessonOpenedAt) / 1000)
+      : 0;
+
     setCompleting(true);
     try {
-      const response = await api.post(`/progress/lesson/${lessonId}/complete`);
+      const response = await api.post(`/progress/lesson/${lessonId}/complete`, {
+        timeSpentSeconds,
+      });
       if (response.data.success) {
         setCompletedLessons(prev => new Set([...prev, lessonId]));
-        // Show success toast with XP earned
         const xpEarned = response.data.xpEarned || 0;
         toast.success(`Lesson completed! +${xpEarned} XP earned 🎉`);
+        // Refresh levels to update unlock status
+        fetchData();
       }
     } catch (err: any) {
-      if (err.response?.status !== 400) { // 400 means already completed, which is fine
-        toast.error("Failed to mark lesson as complete");
-      } else {
-        // Already completed
+      const msg = err.response?.data?.message || "";
+      if (err.response?.status === 400 && msg.includes("already completed")) {
         setCompletedLessons(prev => new Set([...prev, lessonId]));
+      } else if (err.response?.status === 400 && msg.includes("seconds")) {
+        // Engagement time not met
+        toast.error(msg);
+      } else if (err.response?.status === 403) {
+        toast.error(msg || "Complete the previous lesson first.");
+      } else {
+        toast.error(msg || "Failed to mark lesson as complete");
       }
-    } finally { 
-      setCompleting(false); 
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -182,6 +201,9 @@ const Lessons = () => {
     setQuizAnswers([]);
     setQuizSubmitted(false);
     setQuizScore(0);
+    setQuizResult(null);
+    // Start tracking time
+    setLessonOpenedAt(Date.now());
     try {
       const res = await api.get(`/quizzes/lesson/${lesson._id}`);
       if (res.data.data) setQuiz(res.data.data);
@@ -197,10 +219,24 @@ const Lessons = () => {
     const score = Math.round((correct / quiz.questions.length) * 100);
     setQuizScore(score);
     setQuizSubmitted(true);
+
     if (selectedLevelId) {
       try {
-        await api.post("/progress/level/score", { levelId: selectedLevelId, score });
-      } catch { /* ignore */ }
+        const res = await api.post("/progress/level/score", { levelId: selectedLevelId, score });
+        setQuizResult({
+          levelCompleted: res.data.levelCompleted,
+          message: res.data.message,
+        });
+        if (res.data.levelCompleted) {
+          toast.success("Level completed! Next level unlocked 🎉");
+          // Refresh to update unlock status
+          setTimeout(() => fetchData(), 1000);
+        } else if (score < 80) {
+          toast.error(`Score: ${score}% — Need 80% to unlock next level. Try again!`);
+        }
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to save quiz score");
+      }
     }
   };
 
@@ -260,9 +296,19 @@ const Lessons = () => {
                         <span className="text-sm font-medium">Completed</span>
                       </div>
                     ) : (
-                      <GlassButton variant="primary" size="sm" onClick={() => handleCompleteLesson(selectedLesson._id)} disabled={completing}>
-                        {completing ? "Saving..." : "Mark Complete"}
-                      </GlassButton>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <GlassButton
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCompleteLesson(selectedLesson._id)}
+                          disabled={completing}
+                        >
+                          {completing ? "Saving..." : "Mark Complete"}
+                        </GlassButton>
+                        <p className="text-[10px] text-muted-foreground">
+                          Spend ≥30s on this lesson
+                        </p>
+                      </div>
                     )}
                   </div>
 
@@ -337,12 +383,33 @@ const Lessons = () => {
 
                     {!showQuiz ? (
                       <div className="text-center py-6">
-                        <p className="text-muted-foreground mb-4">
+                        <p className="text-muted-foreground mb-2">
                           {quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""} to test your knowledge
                         </p>
+                        <p className="text-xs text-amber-400 mb-4 flex items-center justify-center gap-1">
+                          <Trophy size={12} /> Score 80% or higher to unlock the next level
+                        </p>
                         {quizSubmitted ? (
-                          <div className={`text-2xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
-                            Score: {quizScore}% {quizScore >= 80 ? "— Level unlocked! 🎉" : "— Need 80% to unlock next level"}
+                          <div className="space-y-2">
+                            <div className={`text-2xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
+                              Score: {quizScore}%
+                            </div>
+                            {quizResult && (
+                              <p className={`text-sm ${quizResult.levelCompleted ? "text-green-400" : "text-orange-400"}`}>
+                                {quizResult.message}
+                              </p>
+                            )}
+                            {quizScore < 80 && (
+                              <GlassButton variant="secondary" size="sm" onClick={() => {
+                                setQuizSubmitted(false);
+                                setQuizAnswers([]);
+                                setQuizScore(0);
+                                setQuizResult(null);
+                                setShowQuiz(true);
+                              }}>
+                                Try Again
+                              </GlassButton>
+                            )}
                           </div>
                         ) : (
                           <GlassButton variant="primary" glow onClick={() => setShowQuiz(true)}>
@@ -394,8 +461,25 @@ const Lessons = () => {
                             Submit Quiz
                           </GlassButton>
                         ) : (
-                          <div className={`text-xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
-                            Score: {quizScore}% {quizScore >= 80 ? "— Level unlocked! 🎉" : "— Need 80% to unlock next level"}
+                          <div className="space-y-3">
+                            <div className={`text-xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
+                              Score: {quizScore}%
+                            </div>
+                            {quizResult && (
+                              <p className={`text-sm ${quizResult.levelCompleted ? "text-green-400" : "text-orange-400"}`}>
+                                {quizResult.message}
+                              </p>
+                            )}
+                            {quizScore < 80 && (
+                              <GlassButton variant="secondary" size="sm" onClick={() => {
+                                setQuizSubmitted(false);
+                                setQuizAnswers([]);
+                                setQuizScore(0);
+                                setQuizResult(null);
+                              }}>
+                                Try Again (need 80%)
+                              </GlassButton>
+                            )}
                           </div>
                         )}
                       </div>

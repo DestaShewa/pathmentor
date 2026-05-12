@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, BarChart, Users, Settings,
   ChevronLeft, Clock3, ShieldCheck, Trophy, Award,
-  Bell, Calendar, User, FolderKanban,
+  Bell, Calendar, User, FolderKanban, LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +47,7 @@ export const DashboardSidebar = ({
     { icon: FolderKanban,    label: "Projects",      id: "projects" },
     { icon: User,            label: "Profile",       id: "profile" },
     { icon: Settings,        label: "Settings",      id: "settings" },
+    { icon: LifeBuoy,        label: "Support",       id: "support" },
   ];
 
   const pendingNavItems = [

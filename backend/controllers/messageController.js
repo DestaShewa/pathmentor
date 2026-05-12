@@ -1,12 +1,24 @@
 const Message = require("../models/Message");
 
+// Helper to determine attachment type from mimetype
+const getAttachmentType = (mimetype) => {
+  if (mimetype.startsWith("image/")) return "image";
+  if (mimetype.startsWith("audio/")) return "audio";
+  if (mimetype.startsWith("video/")) return "video";
+  return "document";
+};
+
 // GET /api/messages/room/:roomId
 exports.getMessagesByRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
     if (!roomId) return res.status(400).json({ message: "roomId is required" });
 
-    const messages = await Message.find({ roomId }).sort({ createdAt: 1 }).populate("sender", "name email");
+    const messages = await Message.find({ roomId, deletedAt: null })
+      .sort({ createdAt: 1 })
+      .populate("sender", "name email role")
+      .populate("replyTo", "message sender");
+      
     res.json({ messages });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -16,24 +28,166 @@ exports.getMessagesByRoom = async (req, res) => {
 // POST /api/messages
 exports.createMessage = async (req, res) => {
   try {
-    const { roomId, message } = req.body;
+    const { roomId, message, messageType, replyTo } = req.body;
     const sender = req.user ? req.user._id : null;
 
-    if (!roomId || !message) return res.status(400).json({ message: "roomId and message are required" });
+    if (!roomId) return res.status(400).json({ message: "roomId is required" });
+    
+    // Either message text or attachments must be present
+    if (!message && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({ message: "Message text or attachments required" });
+    }
 
-    const newMsg = new Message({ roomId, message, sender });
+    // Process attachments if any
+    const attachments = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        attachments.push({
+          type: getAttachmentType(file.mimetype),
+          url: `/uploads/chat/${file.filename}`,
+          filename: file.originalname,
+          size: file.size,
+          mimeType: file.mimetype
+        });
+      }
+    }
+
+    const newMsg = new Message({
+      roomId,
+      message: message || "",
+      messageType: messageType || (attachments.length > 0 ? attachments[0].type : "text"),
+      attachments,
+      sender,
+      replyTo: replyTo || undefined
+    });
+    
     await newMsg.save();
 
-    // populate sender info for response
-    await newMsg.populate("sender", "name email");
+    // Populate sender info for response
+    await newMsg.populate("sender", "name email role");
+    if (newMsg.replyTo) {
+      await newMsg.populate("replyTo", "message sender");
+    }
 
-    // emit over socket.io if available
+    // Emit over socket.io if available
     const io = req.app && req.app.get && req.app.get("io");
     if (io) {
       io.to(roomId).emit("newMessage", newMsg);
     }
 
     res.status(201).json({ message: newMsg });
+  } catch (error) {
+    console.error("Create message error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PUT /api/messages/:id - Edit message
+exports.editMessage = async (req, res) => {
+  try {
+    const { message } = req.body;
+    const msg = await Message.findById(req.params.id);
+    
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+    if (msg.sender.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    msg.message = message;
+    msg.isEdited = true;
+    await msg.save();
+    
+    await msg.populate("sender", "name email role");
+    
+    const io = req.app && req.app.get && req.app.get("io");
+    if (io) {
+      io.to(msg.roomId).emit("messageEdited", msg);
+    }
+    
+    res.json({ message: msg });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /api/messages/:id - Soft delete message
+exports.deleteMessage = async (req, res) => {
+  try {
+    const msg = await Message.findById(req.params.id);
+    
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+    if (msg.sender.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    msg.deletedAt = new Date();
+    await msg.save();
+    
+    const io = req.app && req.app.get && req.app.get("io");
+    if (io) {
+      io.to(msg.roomId).emit("messageDeleted", { messageId: msg._id });
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /api/messages/room/:roomId - Delete entire conversation (admin only)
+exports.deleteConversation = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    // Soft delete all messages in room
+    await Message.updateMany(
+      { roomId, deletedAt: null },
+      { $set: { deletedAt: new Date() } }
+    );
+    
+    const io = req.app && req.app.get && req.app.get("io");
+    if (io) {
+      io.to(roomId).emit("conversationDeleted", { roomId });
+    }
+    
+    res.json({ success: true, message: "Conversation deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// POST /api/messages/:id/read - Mark message as read
+exports.markAsRead = async (req, res) => {
+  try {
+    const msg = await Message.findById(req.params.id);
+    if (!msg) return res.status(404).json({ message: "Message not found" });
+    
+    // Check if already read by this user
+    const alreadyRead = msg.readBy.some(r => r.user.toString() === req.user._id.toString());
+    if (!alreadyRead) {
+      msg.readBy.push({ user: req.user._id, readAt: new Date() });
+      await msg.save();
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/messages/unread-count - Get unread message count
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find all messages where user is not the sender and hasn't read
+    const count = await Message.countDocuments({
+      sender: { $ne: userId },
+      deletedAt: null,
+      "readBy.user": { $ne: userId }
+    });
+    
+    res.json({ count });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

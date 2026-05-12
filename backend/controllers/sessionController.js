@@ -78,6 +78,15 @@ const cancelSession = asyncHandler(async (req, res) => {
   if (!isOwner) return res.status(403).json({ message: "Not authorized" });
   if (session.status !== "scheduled") return res.status(400).json({ message: "Only scheduled sessions can be cancelled" });
 
+  // Mentor can only cancel if session time has NOT passed
+  if (req.user.role === "mentor") {
+    const sessionTime = new Date(session.date);
+    const now = new Date();
+    if (sessionTime <= now) {
+      return res.status(400).json({ message: "Cannot cancel a session that has already started or passed" });
+    }
+  }
+
   session.status = "cancelled";
   await session.save();
   res.json({ success: true, message: "Session cancelled" });
@@ -195,4 +204,55 @@ const getMentorAvailability = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { bookSession, getMySessions, getMentorSessions, cancelSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability };
+// PUT /api/sessions/:id/postpone
+const postponeSession = asyncHandler(async (req, res) => {
+  const { newDate } = req.body;
+  if (!newDate) return res.status(400).json({ message: "New date is required" });
+
+  const session = await Session.findById(req.params.id);
+  if (!session) return res.status(404).json({ message: "Session not found" });
+
+  // Only mentor can postpone
+  if (session.mentorId.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ message: "Only the mentor can postpone a session" });
+  }
+
+  if (session.status !== "scheduled") {
+    return res.status(400).json({ message: "Only scheduled sessions can be postponed" });
+  }
+
+  const newSessionDate = new Date(newDate);
+  if (newSessionDate < new Date()) {
+    return res.status(400).json({ message: "New date must be in the future" });
+  }
+
+  // Check for conflicts at new time
+  const thirtyMin = 30 * 60 * 1000;
+  const conflict = await Session.findOne({
+    _id: { $ne: session._id },
+    mentorId: session.mentorId,
+    status: "scheduled",
+    date: { $gte: new Date(newSessionDate - thirtyMin), $lte: new Date(newSessionDate.getTime() + thirtyMin) }
+  });
+  if (conflict) {
+    return res.status(400).json({ message: "You have another session scheduled at that time" });
+  }
+
+  session.date = newSessionDate;
+  await session.save();
+
+  // Notify student about postponement
+  const { createNotification } = require("./notificationController");
+  await createNotification({
+    userId: session.studentId,
+    type: "info",
+    title: "Session Postponed",
+    message: `Your session has been rescheduled to ${newSessionDate.toLocaleDateString()} at ${newSessionDate.toLocaleTimeString()}`,
+    link: "/sessions",
+    icon: "calendar"
+  }).catch(err => console.error("Failed to notify student:", err));
+
+  res.json({ success: true, message: "Session postponed", data: session });
+});
+
+module.exports = { bookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability };

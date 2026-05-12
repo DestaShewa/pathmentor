@@ -23,88 +23,88 @@ const MAX_STUDENTS_PER_MENTOR = 20;
 /**
  * Auto-assign the best available mentor to a student.
  *
- * Matching priority:
- *  1. Mentor's skillTrack matches student's enrolled course title (exact, case-insensitive)
- *  2. Mentor's skillTrack partially matches course title
- *  3. Mentor's skillTrack matches student's experienceLevel
- *  4. Prefer less-loaded mentors
- *  5. Rating bonus
+ * STRICT MATCHING: Only assigns mentors whose skillTrack matches the student's
+ * enrolled course title or skillTrack. Never assigns an unrelated mentor.
  *
- * Hard requirements:
- *  - role === "mentor"
- *  - mentorVerification.status === "approved"
- *  - studentCount < MAX_STUDENTS_PER_MENTOR (20)
+ * Scoring within matched mentors:
+ *  +5  exact course title match
+ *  +3  partial match (one contains the other)
+ *  +2  prefer less-loaded mentors
+ *  +1  rating bonus per 0.5 above 3.0
+ *
+ * Returns null if no matching mentor is available.
  */
 const assignMentor = async (student) => {
-  const skillTrack      = student.learningProfile?.skillTrack || "";
-  const courseTitle     = student.learningProfile?.course?.title || skillTrack;
-  const experienceLevel = student.learningProfile?.experienceLevel || "";
+  const skillTrack  = (student.learningProfile?.skillTrack || "").toLowerCase().trim();
+  const courseTitle = (student.learningProfile?.course?.title || skillTrack).toLowerCase().trim();
+
+  if (!skillTrack && !courseTitle) return null;
 
   // Find all approved mentors under the cap
   const candidates = await User.find({
     role: "mentor",
     "mentorVerification.status": "approved",
-    studentCount: { $lt: MAX_STUDENTS_PER_MENTOR }
+    studentCount: { $lt: MAX_STUDENTS_PER_MENTOR },
   }).select("name email learningProfile studentCount");
 
   if (!candidates.length) return null;
 
-  // Get avg session ratings for each mentor
-  const mentorIds = candidates.map(m => m._id);
+  // Get avg session ratings
+  const mentorIds = candidates.map((m) => m._id);
   const ratingAgg = await Session.aggregate([
     { $match: { mentorId: { $in: mentorIds }, studentRating: { $gt: 0 } } },
-    { $group: { _id: "$mentorId", avg: { $avg: "$studentRating" }, count: { $sum: 1 } } }
+    { $group: { _id: "$mentorId", avg: { $avg: "$studentRating" } } },
   ]);
-  const ratingMap = Object.fromEntries(ratingAgg.map(r => [r._id.toString(), r.avg]));
+  const ratingMap = Object.fromEntries(ratingAgg.map((r) => [r._id.toString(), r.avg]));
 
-  // Score each candidate
-  const scored = candidates.map(mentor => {
+  // Score and FILTER — only mentors whose track matches
+  const scored = [];
+  for (const mentor of candidates) {
+    const mentorTrack = (mentor.learningProfile?.skillTrack || "").toLowerCase().trim();
+    if (!mentorTrack) continue; // skip mentors with no track set
+
     let score = 0;
-    const mentorTrack = (mentor.learningProfile?.skillTrack || "").toLowerCase();
-    const courseLower = courseTitle.toLowerCase();
-    const trackLower  = skillTrack.toLowerCase();
 
-    // Exact course title match — highest priority
-    if (mentorTrack && mentorTrack === courseLower) {
+    // Exact match
+    if (mentorTrack === courseTitle || mentorTrack === skillTrack) {
       score += 5;
     }
-    // Partial match (e.g. mentor track "Web Development" matches course "Web Development Bootcamp")
-    else if (mentorTrack && (courseLower.includes(mentorTrack) || mentorTrack.includes(courseLower))) {
+    // Partial match (one contains the other)
+    else if (
+      courseTitle.includes(mentorTrack) ||
+      mentorTrack.includes(courseTitle) ||
+      skillTrack.includes(mentorTrack) ||
+      mentorTrack.includes(skillTrack)
+    ) {
       score += 3;
     }
-    // Fallback: skillTrack match
-    else if (trackLower && mentorTrack === trackLower) {
-      score += 2;
+    else {
+      // No match — skip this mentor entirely (strict matching)
+      continue;
     }
 
-    // Experience level match
-    if (experienceLevel && mentor.learningProfile?.experienceLevel?.toLowerCase() === experienceLevel.toLowerCase()) {
-      score += 1;
-    }
-
-    // Prefer less loaded mentors (0–2 pts based on remaining capacity)
+    // Prefer less-loaded mentors
     const remaining = MAX_STUDENTS_PER_MENTOR - (mentor.studentCount || 0);
     score += Math.round((remaining / MAX_STUDENTS_PER_MENTOR) * 2);
 
     // Rating bonus
     const avgRating = ratingMap[mentor._id.toString()] || 0;
-    if (avgRating > 3.0) {
-      score += Math.round((avgRating - 3.0) / 0.5);
-    }
+    if (avgRating > 3.0) score += Math.round((avgRating - 3.0) / 0.5);
 
-    return { mentor, score };
-  });
+    scored.push({ mentor, score });
+  }
 
-  // Sort by score descending, then by studentCount ascending as tiebreaker
+  if (!scored.length) return null; // No matching mentor found
+
+  // Sort by score desc, then by studentCount asc as tiebreaker
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return (a.mentor.studentCount || 0) - (b.mentor.studentCount || 0);
   });
 
-  const best = scored[0]?.mentor;
-  if (!best) return null;
+  const best = scored[0].mentor;
 
-  // Assign: update student's assignedMentor and increment mentor's studentCount
+  // Assign
   await User.findByIdAndUpdate(student._id, { assignedMentor: best._id });
   await User.findByIdAndUpdate(best._id, { $inc: { studentCount: 1 } });
 

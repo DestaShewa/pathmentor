@@ -161,6 +161,27 @@ router.get("/session-reviews", async (req, res) => {
   }
 });
 
+// Delete a session review (removes rating and comment)
+router.delete("/session-reviews/:id", async (req, res) => {
+  try {
+    const Session = require("../models/Session");
+    const session = await Session.findById(req.params.id);
+    
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+    
+    // Clear the rating and comment
+    session.studentRating = 0;
+    session.studentComment = undefined;
+    await session.save();
+    
+    res.json({ success: true, message: "Review deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 /* ── CATEGORIES (derived from courses) ──────────────────── */
 router.get("/categories", async (req, res) => {
   try {

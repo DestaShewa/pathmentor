@@ -8,7 +8,7 @@ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import {
-  BookOpen, Users, BarChart3, Upload, ChevronRight,
+  BookOpen, Users, Upload, ChevronRight,
   RefreshCw, Layers, Trophy, Plus
 } from "lucide-react";
 
@@ -171,18 +171,12 @@ const MyClasses = () => {
                       </div>
 
                       {/* Actions */}
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => navigate(`/mentor/class/${course._id}`)}
                           className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all text-xs font-bold"
                         >
                           <ChevronRight size={16} /> View
-                        </button>
-                        <button
-                          onClick={() => navigate(`/mentor/analysis/${course._id}`)}
-                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold"
-                        >
-                          <BarChart3 size={16} /> Stats
                         </button>
                         <button
                           onClick={() => navigate(`/mentor/upload/${course._id}`)}

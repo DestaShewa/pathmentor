@@ -22,7 +22,11 @@ const userSchema=new mongoose.Schema(
             type: String,
             enum: ["student", "mentor", "admin"], 
             
-        }, 
+        },
+        avatarUrl: {
+            type: String,
+            default: null
+        },
         
         verificationToken: {
             type: String
@@ -80,6 +84,16 @@ const userSchema=new mongoose.Schema(
                 ref: "User"
              },
              reviewedAt: Date
+     },
+     
+     // Online status for real-time chat
+     isOnline: {
+       type: Boolean,
+       default: false
+     },
+     lastSeen: {
+       type: Date,
+       default: Date.now
      }
 
 

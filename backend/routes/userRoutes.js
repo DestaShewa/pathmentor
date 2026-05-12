@@ -2,6 +2,7 @@ const express = require("express");
 const router  = express.Router();
 const { guard } = require("../middleware/authMiddleware");
 const upload  = require("../middleware/uploadMiddleware");
+const { avatarUpload } = require("../middleware/uploadMiddleware");
 const { getMyProfile, updateMyProfile, changePassword, completeProfile } = require("../controllers/userController");
 const User = require("../models/User");
 
@@ -9,6 +10,18 @@ router.get("/profile",         guard, getMyProfile);
 router.put("/profile",         guard, updateMyProfile);
 router.put("/change-password", guard, changePassword);
 router.post("/onboarding",     guard, upload.array("documents", 5), completeProfile);
+
+// POST /api/users/upload-avatar — upload profile picture
+router.post("/upload-avatar", guard, avatarUpload.single("avatar"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    await User.findByIdAndUpdate(req.user._id, { avatarUrl });
+    res.json({ success: true, avatarUrl });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // GET assigned mentor for the logged-in student
 router.get("/my-mentor", guard, async (req, res) => {

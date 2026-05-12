@@ -145,78 +145,134 @@ if (perfectScoreLevel) {
 ========================================
 COMPLETE LESSON
 POST /api/progress/lesson/:id/complete
+Body: { timeSpentSeconds: number }  — client must send actual time spent
+Unlock rules:
+  - Lesson 1 of a level (order === 1): always completable after 30s engagement
+  - Subsequent lessons: previous lesson must be completed
+  - Level unlock: ALL lessons done AND quiz score >= 80%
 ========================================
 */
 const completeLesson = asyncHandler(async (req, res) => {
 
   const userId = req.user._id;
   const lessonId = req.params.id;
+  const { timeSpentSeconds = 0 } = req.body;
 
   const lesson = await Lesson.findById(lessonId);
-
-  
- if (!lesson) {
-  res.status(404);
-  throw new Error("Lesson not found");
-}
-
+  if (!lesson) {
+    res.status(404);
+    throw new Error("Lesson not found");
+  }
 
   const level = await Level.findById(lesson.level);
-
-  
   if (!level) {
-  res.status(404);
-  throw new Error("Level not found");
-}
+    res.status(404);
+    throw new Error("Level not found");
+  }
 
-
-  const xp = getXPForLevel(level.title);
-
-  let progress = await Progress.findOne({
-    user: userId,
-    course: lesson.course
-  });
-
-  // Create progress if not exists
-  if (!progress) {
-    progress = await Progress.create({
-      user: userId,
-      course: lesson.course,
-      levelsProgress: [],
-      xpEarned: 0
+  // ── Minimum engagement check ──────────────────────────────────
+  // Require at least 30 seconds of engagement before marking complete
+  const MIN_ENGAGEMENT_SECONDS = 30;
+  if (timeSpentSeconds < MIN_ENGAGEMENT_SECONDS) {
+    return res.status(400).json({
+      success: false,
+      message: `Please spend at least ${MIN_ENGAGEMENT_SECONDS} seconds on this lesson before completing it.`,
+      required: MIN_ENGAGEMENT_SECONDS,
+      provided: timeSpentSeconds,
     });
   }
 
-  // Find level progress
-  let levelProgress = progress.levelsProgress.find(lp =>
-    lp.level.toString() === level._id.toString()
+  // ── Check level is unlocked for this student ──────────────────
+  let progress = await Progress.findOne({ user: userId, course: lesson.course });
+
+  if (!progress) {
+    // First lesson of first level — create progress
+    if (level.order === 1) {
+      progress = await Progress.create({
+        user: userId,
+        course: lesson.course,
+        levelsProgress: [],
+        xpEarned: 0,
+      });
+    } else {
+      return res.status(403).json({
+        success: false,
+        message: "You must complete the previous level first.",
+      });
+    }
+  }
+
+  // Check if this level is accessible:
+  // Level 1 is always accessible.
+  // Level N requires level N-1 to be completed (isCompleted = true AND score >= 80)
+  if (level.order > 1) {
+    const prevLevels = await Level.find({ course: lesson.course, order: level.order - 1 });
+    const prevLevel = prevLevels[0];
+    if (prevLevel) {
+      const prevLevelProgress = progress.levelsProgress.find(
+        (lp) => lp.level.toString() === prevLevel._id.toString()
+      );
+      if (!prevLevelProgress || !prevLevelProgress.isCompleted || prevLevelProgress.score < 80) {
+        return res.status(403).json({
+          success: false,
+          message: "Complete the previous level with a quiz score of 80% or higher to unlock this level.",
+        });
+      }
+    }
+  }
+
+  // ── Check lesson order within level ──────────────────────────
+  // Lessons must be completed in order (lesson.order > 1 requires previous lesson done)
+  if (lesson.order > 1) {
+    const prevLessons = await Lesson.find({
+      level: lesson.level,
+      order: lesson.order - 1,
+    });
+    const prevLesson = prevLessons[0];
+    if (prevLesson) {
+      const levelProg = progress.levelsProgress.find(
+        (lp) => lp.level.toString() === level._id.toString()
+      );
+      const prevDone = levelProg?.completedLessons?.some(
+        (id) => id.toString() === prevLesson._id.toString()
+      );
+      if (!prevDone) {
+        return res.status(403).json({
+          success: false,
+          message: "Complete the previous lesson first.",
+        });
+      }
+    }
+  }
+
+  const xp = getXPForLevel(level.title);
+
+  // Find or create level progress entry
+  let levelProgress = progress.levelsProgress.find(
+    (lp) => lp.level.toString() === level._id.toString()
   );
 
-  // Create if not exist
   if (!levelProgress) {
     levelProgress = {
       level: level._id,
       completedLessons: [],
       score: 0,
-      isCompleted: false
+      isCompleted: false,
     };
-
     progress.levelsProgress.push(levelProgress);
   }
 
   // Prevent duplicate lesson completion
-  if (levelProgress.completedLessons.includes(lessonId)) {
+  if (levelProgress.completedLessons.some((id) => id.toString() === lessonId)) {
     return res.json({
       success: true,
       message: "Lesson already completed",
-      totalXP: progress.xpEarned
+      totalXP: progress.xpEarned,
     });
   }
 
-  // Add lesson
+  // Mark lesson complete
   levelProgress.completedLessons.push(lessonId);
-
-  // Add XP
   progress.xpEarned += xp;
 
   await progress.save();
@@ -273,6 +329,7 @@ const completeLesson = asyncHandler(async (req, res) => {
 ========================================
 UPDATE LEVEL SCORE (QUIZ / PROJECT / EXAM)
 POST /api/progress/level/score
+Level completes ONLY when ALL lessons done AND score >= 80%
 ========================================
 */
 const updateLevelScore = asyncHandler(async (req, res) => {
@@ -284,7 +341,6 @@ const updateLevelScore = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "levelId and score are required" });
   }
 
-  // Find the level to get its course if courseId not provided
   let resolvedCourseId = courseId;
   if (!resolvedCourseId) {
     const level = await Level.findById(levelId);
@@ -293,43 +349,47 @@ const updateLevelScore = asyncHandler(async (req, res) => {
   }
 
   const progress = await Progress.findOne({ user: userId, course: resolvedCourseId });
-
   if (!progress) {
     res.status(404);
-    throw new Error("Progress not found");
+    throw new Error("Progress not found — enroll in the course first");
   }
 
   const levelProgress = progress.levelsProgress.find(lp =>
     lp.level.toString() === levelId
   );
-
   if (!levelProgress) {
     res.status(404);
-    throw new Error("Level progress not found");
+    throw new Error("Level progress not found — complete at least one lesson first");
   }
 
-  // Update score
-  levelProgress.score = score;
+  // Keep the highest score
+  if (score > levelProgress.score) {
+    levelProgress.score = score;
+  }
 
   const totalLessons = await Lesson.countDocuments({ level: levelId });
+  const PASS_THRESHOLD = 80;
+  const allLessonsDone = levelProgress.completedLessons.length >= totalLessons && totalLessons > 0;
+  const quizPassed = levelProgress.score >= PASS_THRESHOLD;
 
-  // Unlock condition 🔥
-  if (
-    levelProgress.completedLessons.length === totalLessons &&
-    score >= 80
-  ) {
-    levelProgress.isCompleted = true;
-  }
+  // Level completes ONLY when all lessons done AND quiz >= 80%
+  levelProgress.isCompleted = allLessonsDone && quizPassed;
 
   await progress.save();
-
-  // Check achievements
   await checkAchievements(userId, progress);
 
   res.json({
     success: true,
-    message: "Score updated",
-    levelCompleted: levelProgress.isCompleted
+    message: levelProgress.isCompleted
+      ? "Level completed! Next level unlocked."
+      : score < PASS_THRESHOLD
+      ? `Score ${score}% — need ${PASS_THRESHOLD}% to unlock next level. Try again!`
+      : `Score saved. Complete all ${totalLessons} lessons to unlock next level.`,
+    levelCompleted: levelProgress.isCompleted,
+    score: levelProgress.score,
+    passThreshold: PASS_THRESHOLD,
+    allLessonsDone,
+    quizPassed,
   });
 
 });

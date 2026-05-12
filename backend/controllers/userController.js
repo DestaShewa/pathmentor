@@ -120,34 +120,19 @@ const completeProfile = async (req, res) => {
           .filter(Boolean)
       : [];
 
-    // Skill track ID → human-readable label map (matches SKILL_OPTIONS in frontend)
-    const SKILL_TRACK_LABELS = {
-      full_stack:    "Full-Stack Coding",
-      ui_ux:         "UI/UX Design",
-      video_editing: "Video Editing",
-      ai_ml:         "AI & Machine Learning",
-      graphic_design:"Graphic Design",
-      cybersecurity: "Cybersecurity",
-      mobile_dev:    "Mobile Development",
-      data_science:  "Data Science",
-      cloud_devops:  "Cloud & DevOps",
-    };
+    // skillTrack is now the course title directly from the DB selection
 
-    // Find course based on skillTrack — try label first, then raw value
+    // Find course based on skillTrack — try exact title match first, then partial
     const Course = require("../models/Course");
     let courseData = null;
 
     if (skillTrack) {
-      const humanLabel = SKILL_TRACK_LABELS[skillTrack] || skillTrack;
-
-      // Try exact label match first, then partial match
+      // Try exact title match first (since skillTrack is now the course title from DB)
       let course = await Course.findOne({
         $or: [
-          { title: new RegExp(`^${humanLabel}$`, "i") },
-          { title: new RegExp(humanLabel, "i") },
-          { category: new RegExp(humanLabel, "i") },
-          { title: new RegExp(skillTrack.replace(/_/g, " "), "i") },
-          { category: new RegExp(skillTrack.replace(/_/g, " "), "i") },
+          { title: new RegExp(`^${skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+          { title: new RegExp(skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") },
+          { category: new RegExp(skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") },
         ]
       });
 

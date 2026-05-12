@@ -103,9 +103,6 @@ const ClassDetails = () => {
                   <p className="text-muted-foreground mt-1">{course.description}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <GlassButton variant="secondary" size="sm" onClick={() => navigate(`/mentor/analysis/${id}`)}>
-                    <BarChart3 size={15} /> Analytics
-                  </GlassButton>
                   <GlassButton variant="primary" size="sm" onClick={() => navigate(`/mentor/upload/${id}`)}>
                     <Upload size={15} /> Add Lesson
                   </GlassButton>

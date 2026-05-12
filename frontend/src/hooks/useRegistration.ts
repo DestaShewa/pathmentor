@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { RegistrationData, SkillTrack, ExperienceLevel, CommitmentTime, LearningStyle, LearningGoal } from '@/lib/registrationTypes';
+import { RegistrationData, ExperienceLevel, CommitmentTime, LearningStyle, LearningGoal } from '@/lib/registrationTypes';
 import { generateLearningProfile, LearningProfile } from '@/lib/matchingEngine';
 
 const TOTAL_STEPS = 7;

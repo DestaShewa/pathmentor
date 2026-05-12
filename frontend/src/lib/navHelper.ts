@@ -16,6 +16,7 @@ export const handleSidebarNav = (view: string, navigate: (path: string) => void)
     "study-rooms": "/study-rooms",
     // progress is an in-page view on Dashboard
     progress:      "/dashboard",
+    support:       "/support",
   };
   if (routes[view]) navigate(routes[view]);
 };

@@ -26,6 +26,8 @@ const sessionRoutes = require("./routes/sessionRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const studyRoomRoutes = require("./routes/studyRoomRoutes");
+const supportTicketRoutes = require("./routes/supportTicketRoutes");
+const conversationRoutes = require("./routes/conversationRoutes");
 
 const PORT = process.env.PORT || 5001;
 
@@ -86,13 +88,14 @@ app.use("/api/sessions", sessionRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/study-rooms", studyRoomRoutes);
+app.use("/api/support-tickets", supportTicketRoutes);
+app.use("/api/conversations", conversationRoutes);
 
 app.use(errorHandler);
 
 // Create HTTP server and attach Socket.IO
 const http = require("http").createServer(app);
 const { Server } = require("socket.io");
-const Message = require("./models/Message");
 
 const io = new Server(http, {
   cors: {
@@ -100,6 +103,8 @@ const io = new Server(http, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 app.set("io", io);
@@ -107,43 +112,9 @@ app.set("io", io);
 // Make io globally available for notifications
 global.io = io;
 
-io.on("connection", (socket) => {
-  console.log("socket connected:", socket.id);
-
-  // Join user-specific room for notifications
-  const userId = socket.handshake.auth?.userId;
-  if (userId) {
-    socket.join(`user-${userId}`);
-    console.log(`User ${userId} joined their notification room`);
-  }
-
-  socket.on("join", (room) => {
-    socket.join(room);
-    console.log(`Socket ${socket.id} joined room: ${room}`);
-  });
-
-  socket.on("leave", (room) => {
-    socket.leave(room);
-    console.log(`Socket ${socket.id} left room: ${room}`);
-  });
-
-  socket.on("sendMessage", async (payload) => {
-    try {
-      const { roomId, message, sender } = payload;
-      if (!roomId || !message) return;
-      const newMsg = new Message({ roomId, message, sender: sender || null });
-      await newMsg.save();
-      await newMsg.populate("sender", "name email");
-      io.to(roomId).emit("newMessage", newMsg);
-    } catch (err) {
-      console.error("socket sendMessage error", err.message);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    // console.log("socket disconnected", socket.id);
-  });
-});
+// Initialize Socket.IO service
+const { initializeSocket } = require("./services/socketService");
+initializeSocket(io);
 
 http.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

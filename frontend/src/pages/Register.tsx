@@ -60,7 +60,9 @@ const Register = () => {
         "http://localhost:5001/api/users/onboarding",
         {
           ...data,
-          ...learningProfile
+          ...learningProfile,
+          // skillTrack is now the course title selected from DB
+          skillTrack: data.skillTrack,
         },
         {
           headers: {

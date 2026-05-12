@@ -26,6 +26,7 @@ import VideoRoom from "./pages/VideoRoom";
 import StudentProjects from "./pages/StudentProjects";
 import StudyRooms from "./pages/StudyRooms";
 import StudyRoomDetail from "./pages/StudyRoomDetail";
+import SupportPage from "./pages/SupportPage";
 
 // Mentor Pages
 import MentorDashboard from "./pages/mentor/MentorDashboard";
@@ -118,6 +119,7 @@ const App = () => (
           <Route path="/projects" element={<StudentProjects />} />
           <Route path="/study-rooms" element={<StudyRooms />} />
           <Route path="/study-rooms/:id" element={<StudyRoomDetail />} />
+          <Route path="/support" element={<SupportPage />} />
 
           {/* MENTOR */}
           <Route path="/mentor/pending" element={<MentorPendingApproval />} />

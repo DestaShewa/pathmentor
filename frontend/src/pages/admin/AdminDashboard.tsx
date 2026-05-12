@@ -43,7 +43,22 @@ const AdminDashboard = () => {
         api.get("/admin/activities"),
       ]);
 
-      setDashboardStats(statsRes.data);
+      // Extract stats from response
+      const stats = statsRes.data.stats || {};
+      setDashboardStats({
+        totalUsers: stats.totalStudents + stats.totalMentors + (stats.totalAdmins || 0),
+        students: stats.totalStudents,
+        mentors: stats.totalMentors,
+        pending: stats.pendingMentors,
+        totalCourses: stats.totalCourses,
+        activeStudents: stats.activeUsers,
+        activeMentors: stats.totalMentors, // All approved mentors are considered active
+        enrollmentCount: stats.totalEnrollments,
+        chartData: statsRes.data.chartData || [],
+        liveActivity: statsRes.data.weeklyData || []
+      });
+
+      // Set chart data for visualization
       setChartData(statsRes.data.chartData?.map((item: any) => item.value) || []);
 
       const pending = pendingRes.data;
@@ -216,8 +231,8 @@ const AdminDashboard = () => {
           <canvas ref={canvasRef} className="relative z-10 w-full" />
 
           <div className="relative z-10 flex justify-between mt-4 px-10 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-            {(dashboardStats.chartData?.length ? dashboardStats.chartData : Array(7).fill({ label: "—" }))
-              .map((item: any, i: number) => <span key={i}>{item.label}</span>)}
+            {(dashboardStats.chartData?.length ? dashboardStats.chartData : Array(6).fill({ label: "—", month: "—" }))
+              .map((item: any, i: number) => <span key={i}>{item.month || item.label || "—"}</span>)}
           </div>
         </div>
 

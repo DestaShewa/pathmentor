@@ -10,8 +10,33 @@ const {
 
 const { guard, authorize } = require("../middleware/authMiddleware");
 
-// Get all courses (for students to browse)
+// GET all courses (for students to browse)
 router.get("/", getAllCourses);
+
+// GET course categories for registration — returns unique categories + course titles
+router.get("/categories", async (req, res) => {
+  try {
+    const Course = require("../models/Course");
+    const courses = await Course.find({}, "title category").sort({ title: 1 });
+
+    // Build unique categories with their courses
+    const categoryMap = {};
+    courses.forEach((c) => {
+      const cat = c.category || "General";
+      if (!categoryMap[cat]) categoryMap[cat] = [];
+      categoryMap[cat].push({ _id: c._id, title: c.title });
+    });
+
+    const categories = Object.entries(categoryMap).map(([name, courses]) => ({
+      name,
+      courses,
+    }));
+
+    res.json({ success: true, data: categories, courses });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 // Get course roadmap
 router.get("/:id/roadmap", getCourseRoadmap);

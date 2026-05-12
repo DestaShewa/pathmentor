@@ -1,15 +1,7 @@
 // Registration Types and Constants
 
-export type SkillTrack = 
-  | 'full_stack' 
-  | 'ui_ux' 
-  | 'video_editing' 
-  | 'ai_ml' 
-  | 'graphic_design' 
-  | 'cybersecurity' 
-  | 'mobile_dev' 
-  | 'data_science' 
-  | 'cloud_devops';
+// skillTrack is now a free-form string matching a real course title from the database
+export type SkillTrack = string;
 
 export type ExperienceLevel = 'beginner' | 'basic' | 'intermediate' | 'advanced';
 
