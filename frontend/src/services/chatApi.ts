@@ -1,3 +1,10 @@
+/**
+ * @deprecated - Use the conversation-based API instead:
+ *   GET /api/conversations/:conversationId/messages
+ *   POST /api/conversations/:conversationId/messages
+ * This legacy service uses roomId-based endpoints that auto-resolve
+ * conversations on the backend for backward compatibility.
+ */
 import api from "./api";
 
 export const getMessages = async (roomId: string) => {

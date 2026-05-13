@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
+import { initSocket } from "@/services/socket";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -68,12 +69,38 @@ const StudyBuddies = () => {
   // Chat state — only for accepted matches
   const [chatBuddy, setChatBuddy] = useState<Buddy | null>(null);
   const [chatMatchId, setChatMatchId] = useState<string | null>(null);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/auth"); return; }
     fetchAll();
   }, [navigate]);
+
+  // Real-time notifications for buddy requests and acceptances
+  useEffect(() => {
+    const socket = initSocket();
+    if (!socket) return;
+
+    const handleBuddyAccepted = (data: any) => {
+      toast.success(`${data.by?.name || "Someone"} accepted your study buddy request!`);
+      fetchAll();
+    };
+
+    const handleBuddyRequest = (data: any) => {
+      toast.info(`${data.from?.name || "Someone"} sent you a study buddy request!`);
+      fetchAll();
+    };
+
+    socket.on("buddyAccepted", handleBuddyAccepted);
+    socket.on("buddyRequest", handleBuddyRequest);
+
+    return () => {
+      socket.off("buddyAccepted", handleBuddyAccepted);
+      socket.off("buddyRequest", handleBuddyRequest);
+    };
+  }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -146,7 +173,7 @@ const StudyBuddies = () => {
       await api.delete(`/match/${matchId}`);
       toast.success("Connection removed.");
       setMyMatches((prev) => prev.filter((m) => m.matchId !== matchId));
-      if (chatMatchId === matchId) { setChatBuddy(null); setChatMatchId(null); }
+      if (chatMatchId === matchId) { setChatBuddy(null); setChatMatchId(null); setChatConversationId(null); }
     } catch (e: any) {
       toast.error(e.response?.data?.message || "Failed to remove");
     } finally {
@@ -154,9 +181,25 @@ const StudyBuddies = () => {
     }
   };
 
-  const openChat = (buddy: Buddy, matchId: string) => {
+  const openChat = async (buddy: Buddy, matchId: string) => {
     setChatBuddy(buddy);
     setChatMatchId(matchId);
+    setChatConversationId(null);
+    setChatLoading(true);
+    try {
+      const res = await api.post("/conversations", {
+        otherUserId: buddy._id,
+        type: "study_buddy",
+      });
+      setChatConversationId(res.data.conversation._id);
+    } catch (e: any) {
+      console.error("Failed to create/get conversation:", e);
+      toast.error(e.response?.data?.message || "Failed to open chat");
+      setChatBuddy(null);
+      setChatMatchId(null);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
@@ -492,18 +535,24 @@ const StudyBuddies = () => {
                       Chat with {chatBuddy.name}
                     </h2>
                     <button
-                      onClick={() => { setChatBuddy(null); setChatMatchId(null); }}
+                      onClick={() => { setChatBuddy(null); setChatMatchId(null); setChatConversationId(null); }}
                       className="p-2 rounded-xl bg-white/5 text-muted-foreground hover:text-white hover:bg-white/10 transition-all"
                     >
                       <X size={16} />
                     </button>
                   </div>
-                  <ChatRoom
-                    roomId={`buddy-${[user._id, chatBuddy._id].sort().join("-")}`}
-                    roomName={`Chat with ${chatBuddy.name}`}
-                    currentUserId={user._id}
-                    currentUserName={user.name}
-                  />
+                  {chatLoading ? (
+                    <GlassCard className="flex items-center justify-center h-[500px]">
+                      <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    </GlassCard>
+                  ) : chatConversationId ? (
+                    <ChatRoom
+                      conversationId={chatConversationId}
+                      roomName={`Chat with ${chatBuddy.name}`}
+                      currentUserId={user._id}
+                      currentUserName={user.name}
+                    />
+                  ) : null}
                 </motion.div>
               )}
             </AnimatePresence>

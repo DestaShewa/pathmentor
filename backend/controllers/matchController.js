@@ -77,7 +77,7 @@ const sendMatchRequest = asyncHandler(async (req, res) => {
   // Real-time notification to target user
   const io = global.io;
   if (io) {
-    io.to(`user-${targetUserId}`).emit("buddyRequest", {
+    io.to(`user:${targetUserId}`).emit("buddyRequest", {
       from: { _id: req.user._id, name: req.user.name },
       matchId: match._id,
     });
@@ -105,7 +105,7 @@ const acceptMatchRequest = asyncHandler(async (req, res) => {
   // Notify the requester
   const io = global.io;
   if (io) {
-    io.to(`user-${match.student1.toString()}`).emit("buddyAccepted", {
+    io.to(`user:${match.student1.toString()}`).emit("buddyAccepted", {
       matchId: match._id,
       by: { _id: req.user._id, name: req.user.name },
     });

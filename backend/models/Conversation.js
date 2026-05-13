@@ -42,6 +42,11 @@ const conversationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Match"
     },
+
+    // Legacy support: room ID string for backward compatibility with ChatRoom component
+    roomId: {
+      type: String
+    },
     
     isActive: {
       type: Boolean,
@@ -58,6 +63,7 @@ const conversationSchema = new mongoose.Schema(
 // Index for faster queries
 conversationSchema.index({ participants: 1, lastMessageAt: -1 });
 conversationSchema.index({ lastMessageAt: -1 });
+conversationSchema.index({ roomId: 1 }, { sparse: true });
 
 // Static method to find or create conversation
 conversationSchema.statics.findOrCreate = async function(participant1, participant2, type = "direct", matchId = null) {
@@ -77,6 +83,28 @@ conversationSchema.statics.findOrCreate = async function(participant1, participa
         [participant2]: 0
       }
     });
+  }
+  
+  return conversation;
+};
+
+// Static method to find or create conversation by legacy roomId
+conversationSchema.statics.findOrCreateByRoomId = async function(roomId, senderId) {
+  let conversation = await this.findOne({ roomId });
+  
+  if (!conversation) {
+    conversation = await this.create({
+      participants: [senderId],
+      roomId,
+      type: "direct",
+      unreadCount: {
+        [senderId]: 0
+      }
+    });
+  } else if (!conversation.participants.some(p => p.toString() === senderId.toString())) {
+    // Add sender to participants if not already there
+    conversation.participants.push(senderId);
+    await conversation.save();
   }
   
   return conversation;

@@ -4,65 +4,90 @@ const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
 class ChatSocketService {
   private socket: Socket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private connectPromise: Promise<Socket> | null = null;
   private isIntentionalDisconnect = false;
 
+  /**
+   * Connect to the socket server. Returns a promise that resolves when connected.
+   * Safe to call multiple times — reuses existing connection/promise.
+   */
   connect(token: string): Promise<Socket> {
-    return new Promise((resolve, reject) => {
-      if (this.socket?.connected) {
-        resolve(this.socket);
-        return;
-      }
+    // If already connected, return immediately
+    if (this.socket?.connected) {
+      return Promise.resolve(this.socket);
+    }
 
-      this.isIntentionalDisconnect = false;
+    // If a connection attempt is already in progress, return that promise
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    this.isIntentionalDisconnect = false;
+
+    // Clean up any existing disconnected socket
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    this.connectPromise = new Promise<Socket>((resolve, reject) => {
+      console.log("🔌 ChatSocket: connecting to", SOCKET_URL);
 
       this.socket = io(SOCKET_URL, {
         auth: { token },
         transports: ["websocket", "polling"],
         reconnection: true,
-        reconnectionAttempts: this.maxReconnectAttempts,
-        reconnectionDelay: this.reconnectDelay,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
       });
 
-      this.socket.on("connect", () => {
-        console.log("✅ Socket connected:", this.socket?.id);
-        this.reconnectAttempts = 0;
+      const onConnect = () => {
+        console.log("✅ ChatSocket: connected, id =", this.socket?.id);
+        this.connectPromise = null;
         resolve(this.socket!);
-      });
+      };
 
-      this.socket.on("connect_error", (error) => {
-        console.error("❌ Socket connection error:", error.message);
-        this.reconnectAttempts++;
-        
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-          reject(new Error("Failed to connect after multiple attempts"));
-        }
-      });
+      const onConnectError = (error: Error) => {
+        console.error("❌ ChatSocket: connection error:", error.message);
+        // Don't reject yet — let Socket.IO retry via reconnection
+      };
+
+      this.socket.on("connect", onConnect);
+      this.socket.on("connect_error", onConnectError);
 
       this.socket.on("disconnect", (reason) => {
-        console.log("🔌 Socket disconnected:", reason);
-        
+        console.log("🔌 ChatSocket: disconnected:", reason);
         if (!this.isIntentionalDisconnect && reason === "io server disconnect") {
-          // Server disconnected, try to reconnect
           this.socket?.connect();
         }
       });
 
       this.socket.on("error", (error) => {
-        console.error("Socket error:", error);
+        console.error("ChatSocket error:", error);
       });
+
+      // Timeout: if not connected within 15 seconds, reject
+      setTimeout(() => {
+        if (!this.socket?.connected) {
+          this.connectPromise = null;
+          reject(new Error("Socket connection timeout"));
+        }
+      }, 15000);
     });
+
+    return this.connectPromise;
   }
 
   disconnect() {
     if (this.socket) {
       this.isIntentionalDisconnect = true;
+      this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
+      this.connectPromise = null;
       console.log("Socket disconnected intentionally");
     }
   }
@@ -78,11 +103,15 @@ class ChatSocketService {
   // ========== CONVERSATION EVENTS ==========
   
   joinConversation(conversationId: string) {
-    this.socket?.emit("join_conversation", { conversationId });
+    if (this.socket?.connected) {
+      this.socket.emit("join_conversation", { conversationId });
+    }
   }
 
   leaveConversation(conversationId: string) {
-    this.socket?.emit("leave_conversation", { conversationId });
+    if (this.socket?.connected) {
+      this.socket.emit("leave_conversation", { conversationId });
+    }
   }
 
   sendMessage(data: {
@@ -91,7 +120,9 @@ class ChatSocketService {
     messageType?: string;
     tempId?: string;
   }) {
-    this.socket?.emit("send_message", data);
+    if (this.socket?.connected) {
+      this.socket.emit("send_message", data);
+    }
   }
 
   startTyping(conversationId: string) {
@@ -103,7 +134,9 @@ class ChatSocketService {
   }
 
   markAsRead(conversationId: string) {
-    this.socket?.emit("mark_as_read", { conversationId });
+    if (this.socket?.connected) {
+      this.socket.emit("mark_as_read", { conversationId });
+    }
   }
 
   // ========== EVENT LISTENERS ==========

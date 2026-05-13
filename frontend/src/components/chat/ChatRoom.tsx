@@ -3,7 +3,9 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { MessageSquare, Loader2, Trash2 } from "lucide-react";
-import { initSocket, getSocket } from "@/services/socket";
+import { chatSocket } from "@/services/chatSocket";
+import { useChatSocket } from "@/hooks/useChatSocket";
+import { initSocket } from "@/services/socket";
 import api from "@/services/api";
 
 interface Attachment {
@@ -27,10 +29,15 @@ interface Message {
   attachments?: Attachment[];
   isEdited?: boolean;
   createdAt: string;
+  tempId?: string;
+  isOptimistic?: boolean;
 }
 
 interface ChatRoomProps {
-  roomId: string;
+  /** Modern: pass a real Conversation ObjectId for full conversation-based messaging */
+  conversationId?: string;
+  /** Legacy fallback: room ID string (used by StudyRooms, deprecated for StudyBuddies) */
+  roomId?: string;
   roomName: string;
   currentUserId: string;
   currentUserName: string;
@@ -38,116 +45,233 @@ interface ChatRoomProps {
   onConversationDeleted?: () => void;
 }
 
-export const ChatRoom = ({ roomId, roomName, currentUserId, currentUserName, showDeleteButton = false, onConversationDeleted }: ChatRoomProps) => {
+export const ChatRoom = ({
+  conversationId,
+  roomId,
+  roomName,
+  currentUserId,
+  currentUserName,
+  showDeleteButton = false,
+  onConversationDeleted,
+}: ChatRoomProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const socketRef = useRef<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Connect to modern socket
+  const { isConnected } = useChatSocket();
+
+  // Determine mode: modern (conversationId) or legacy (roomId)
+  const useModernApi = !!conversationId;
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   // Fetch existing messages
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (isInitial = false) => {
     try {
-      const res = await api.get(`/messages/room/${roomId}`);
-      setMessages(res.data.messages || []);
+      let res;
+      if (useModernApi) {
+        res = await api.get(`/conversations/${conversationId}/messages`);
+      } else if (roomId) {
+        res = await api.get(`/messages/room/${roomId}`);
+      } else {
+        setLoading(false);
+        return;
+      }
+      
+      const fetchedMessages = res.data.messages || [];
+      
+      setMessages((prev) => {
+        // Only scroll to bottom if there are new messages or it's the first load
+        if (isInitial || prev.length !== fetchedMessages.length) {
+          setTimeout(scrollToBottom, 100);
+        }
+        return fetchedMessages;
+      });
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     } finally {
       setLoading(false);
     }
-  }, [roomId]);
+  }, [conversationId, roomId, useModernApi, scrollToBottom]);
 
-  // Initialize socket and join room
+  // Fetch messages on mount and when conversation changes
   useEffect(() => {
-    const socket = initSocket();
-    socketRef.current = socket;
+    if (!conversationId && !roomId) return;
+    fetchMessages(true);
+    
+    // Polling fallback: fetch messages every 5 seconds to guarantee delivery
+    const intervalId = setInterval(() => {
+      fetchMessages(false);
+    }, 5000);
+    
+    return () => clearInterval(intervalId);
+  }, [conversationId, roomId, fetchMessages]);
 
-    const handleConnect = () => {
-      setConnected(true);
-      socket.emit("join", roomId);
-    };
+  // Socket event setup — gated on isConnected so listeners attach after socket is ready
+  useEffect(() => {
+    if (useModernApi && conversationId && isConnected) {
+      // Get the raw socket instance directly for reliable listener management
+      const rawSocket = chatSocket.getSocket();
+      if (!rawSocket) {
+        console.warn("⚠️ ChatRoom: isConnected=true but no raw socket available");
+        return;
+      }
 
-    const handleDisconnect = () => {
-      setConnected(true); // Keep showing as connected for better UX
-    };
+      console.log("📨 ChatRoom: joining conversation", conversationId, "socket:", rawSocket.id);
 
-    const handleNewMessage = (newMsg: Message) => {
-      setMessages((prev) => {
-        // Prevent duplicates
-        if (prev.find((m) => m._id === newMsg._id)) return prev;
-        return [...prev, newMsg];
-      });
-    };
+      // Join the conversation room on the server
+      chatSocket.joinConversation(conversationId);
+      chatSocket.markAsRead(conversationId);
 
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("newMessage", handleNewMessage);
+      const handleNewMessage = (data: any) => {
+        console.log("💬 ChatRoom: received new_message event", data.conversationId);
+        if (data.conversationId === conversationId) {
+          setMessages((prev) => {
+            // Remove optimistic message if it matches
+            const filtered = prev.filter((m) => !m.tempId || m.tempId !== data.tempId);
+            // Prevent duplicates
+            if (filtered.find((m) => m._id === data.message._id)) return filtered;
+            return [...filtered, data.message];
+          });
+          chatSocket.markAsRead(conversationId);
+          setTimeout(scrollToBottom, 100);
+        }
+      };
 
-    // Initial connection check
-    if (socket.connected) {
-      handleConnect();
+      // Re-join the room after reconnection (server loses room memberships on disconnect)
+      const handleReconnect = () => {
+        console.log("🔄 ChatRoom: socket reconnected, re-joining conversation", conversationId);
+        chatSocket.joinConversation(conversationId);
+        chatSocket.markAsRead(conversationId);
+      };
+
+      // Attach listeners directly on the raw socket for reliability
+      rawSocket.on("new_message", handleNewMessage);
+      rawSocket.on("connect", handleReconnect);
+
+      return () => {
+        console.log("📤 ChatRoom: leaving conversation", conversationId);
+        chatSocket.leaveConversation(conversationId);
+        rawSocket.off("new_message", handleNewMessage);
+        rawSocket.off("connect", handleReconnect);
+      };
+    } else if (!useModernApi && roomId) {
+      // Legacy: use the legacy socket for study rooms
+      const socket = initSocket();
+
+      if (!socket) {
+        console.warn("Legacy socket service not available");
+        return;
+      }
+
+      const handleConnect = () => {
+        socket.emit("join", roomId);
+      };
+
+      const handleNewMessage = (newMsg: Message) => {
+        setMessages((prev) => {
+          if (prev.find((m) => m._id === newMsg._id)) return prev;
+          return [...prev, newMsg];
+        });
+        setTimeout(scrollToBottom, 100);
+      };
+
+      socket.on("connect", handleConnect);
+      socket.on("newMessage", handleNewMessage);
+
+      if (socket.connected) {
+        handleConnect();
+      }
+
+      return () => {
+        socket.emit("leave", roomId);
+        socket.off("connect", handleConnect);
+        socket.off("newMessage", handleNewMessage);
+      };
     }
-
-    // Fetch existing messages
-    fetchMessages();
-
-    // Cleanup
-    return () => {
-      socket.emit("leave", roomId);
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("newMessage", handleNewMessage);
-    };
-  }, [roomId, fetchMessages]);
+  }, [conversationId, roomId, useModernApi, isConnected, scrollToBottom]);
 
   // Send message with optional attachments
   const handleSendMessage = async (message: string, attachments?: File[]) => {
     if (!message.trim() && (!attachments || attachments.length === 0)) return;
 
+    const tempId = `temp-${Date.now()}`;
+
+    // Optimistic update
+    if (message.trim()) {
+      const optimisticMessage: Message = {
+        _id: tempId,
+        tempId,
+        message: message.trim(),
+        sender: { _id: currentUserId, name: currentUserName, email: "" },
+        createdAt: new Date().toISOString(),
+        isOptimistic: true,
+      };
+      setMessages((prev) => [...prev, optimisticMessage]);
+      setTimeout(scrollToBottom, 100);
+    }
+
     try {
-      // Create FormData for file uploads
-      const formData = new FormData();
-      formData.append("roomId", roomId);
-      if (message.trim()) {
-        formData.append("message", message.trim());
-      }
-      
-      // Append attachments if any
-      if (attachments && attachments.length > 0) {
-        attachments.forEach((file) => {
-          formData.append("attachments", file);
+      if (useModernApi && conversationId) {
+        // Modern: use conversation-based API for both text and attachments
+        const formData = new FormData();
+        if (message.trim()) {
+          formData.append("message", message.trim());
+        } else {
+          formData.append("message", "Sent an attachment");
+        }
+        
+        if (attachments && attachments.length > 0) {
+          attachments.forEach((file) => formData.append("attachments", file));
+        }
+
+        const res = await api.post(`/conversations/${conversationId}/messages`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
-      }
 
-      // Send via REST API with multipart/form-data
-      const res = await api.post("/messages", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+        // Replace optimistic message with real one
+        const newMsg = res.data.message;
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m._id !== tempId);
+          if (filtered.find((m) => m._id === newMsg._id)) return filtered;
+          return [...filtered, newMsg];
+        });
+      } else if (roomId) {
+        // Legacy: use REST API
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        if (message.trim()) {
+          formData.append("message", message.trim());
+        }
+        if (attachments && attachments.length > 0) {
+          attachments.forEach((file) => formData.append("attachments", file));
+        }
 
-      // Optimistically add message to UI
-      const newMsg = res.data.message;
-      setMessages((prev) => {
-        if (prev.find((m) => m._id === newMsg._id)) return prev;
-        return [...prev, newMsg];
-      });
+        const res = await api.post("/messages", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
 
-      // Also emit via socket for real-time delivery to others
-      const socket = socketRef.current;
-      if (socket && socket.connected) {
-        socket.emit("sendMessage", {
-          roomId,
-          message: newMsg,
+        // Replace optimistic message with real one
+        const newMsg = res.data.message;
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m._id !== tempId);
+          if (filtered.find((m) => m._id === newMsg._id)) return filtered;
+          return [...filtered, newMsg];
         });
       }
     } catch (err) {
       console.error("Failed to send message:", err);
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
       alert("Failed to send message. Please try again.");
     }
   };
 
-  // Delete entire conversation (admin only)
+  // Delete entire conversation
   const handleDeleteConversation = async () => {
     if (!confirm("Are you sure you want to delete this entire conversation? This action cannot be undone.")) {
       return;
@@ -155,7 +279,11 @@ export const ChatRoom = ({ roomId, roomName, currentUserId, currentUserName, sho
 
     setDeleting(true);
     try {
-      await api.delete(`/messages/room/${roomId}`);
+      if (useModernApi && conversationId) {
+        await api.delete(`/conversations/${conversationId}`);
+      } else if (roomId) {
+        await api.delete(`/messages/room/${roomId}`);
+      }
       setMessages([]);
       alert("Conversation deleted successfully");
       if (onConversationDeleted) {

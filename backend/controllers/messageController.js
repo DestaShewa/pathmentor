@@ -1,4 +1,5 @@
 const Message = require("../models/Message");
+const Conversation = require("../models/Conversation");
 
 // Helper to determine attachment type from mimetype
 const getAttachmentType = (mimetype) => {
@@ -9,15 +10,26 @@ const getAttachmentType = (mimetype) => {
 };
 
 // GET /api/messages/room/:roomId
+// @deprecated - Use GET /api/conversations/:conversationId/messages instead
 exports.getMessagesByRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
     if (!roomId) return res.status(400).json({ message: "roomId is required" });
 
-    const messages = await Message.find({ roomId, deletedAt: null })
-      .sort({ createdAt: 1 })
-      .populate("sender", "name email role")
-      .populate("replyTo", "message sender");
+    // Try to find messages by conversation.roomId first (modern), then fall back to legacy roomId field
+    const conversation = await Conversation.findOne({ roomId });
+    let messages;
+    if (conversation) {
+      messages = await Message.find({ conversation: conversation._id, deletedAt: null })
+        .sort({ createdAt: 1 })
+        .populate("sender", "name email role")
+        .populate("replyTo", "message sender");
+    } else {
+      messages = await Message.find({ roomId, deletedAt: null })
+        .sort({ createdAt: 1 })
+        .populate("sender", "name email role")
+        .populate("replyTo", "message sender");
+    }
       
     res.json({ messages });
   } catch (error) {
@@ -26,6 +38,7 @@ exports.getMessagesByRoom = async (req, res) => {
 };
 
 // POST /api/messages
+// @deprecated - Use POST /api/conversations/:conversationId/messages instead
 exports.createMessage = async (req, res) => {
   try {
     const { roomId, message, messageType, replyTo } = req.body;
@@ -37,6 +50,9 @@ exports.createMessage = async (req, res) => {
     if (!message && (!req.files || req.files.length === 0)) {
       return res.status(400).json({ message: "Message text or attachments required" });
     }
+
+    // Auto-resolve a Conversation from roomId (required by Message model)
+    const conversation = await Conversation.findOrCreateByRoomId(roomId, sender);
 
     // Process attachments if any
     const attachments = [];
@@ -53,6 +69,7 @@ exports.createMessage = async (req, res) => {
     }
 
     const newMsg = new Message({
+      conversation: conversation._id,
       roomId,
       message: message || "",
       messageType: messageType || (attachments.length > 0 ? attachments[0].type : "text"),
