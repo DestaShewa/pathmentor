@@ -93,7 +93,6 @@ const AdminLayout = () => {
       title: "Chats & Support",
       items: [
         { icon: MessageCircle, label: "User Messages", path: "/admin/user-chat" },
-        { icon: MessageCircle, label: "Conversations", path: "/admin/chats" },
         { icon: Ticket, label: "Support Tickets", path: "/admin/tickets" },
       ]
     },
@@ -101,8 +100,6 @@ const AdminLayout = () => {
       title: "Feedback",
       items: [
         { icon: MessageSquare, label: "All Feedback", path: "/admin/feedback" },
-        { icon: FileText, label: "Reports", path: "/admin/feedback-reports" },
-        { icon: Star, label: "Ratings", path: "/admin/ratings" },
       ]
     },
     {

@@ -151,11 +151,17 @@ router.get("/session-reviews", async (req, res) => {
       status: "completed",
       studentRating: { $gt: 0 }
     })
-      .populate("studentId", "name email")
+      .populate("studentId", "name email learningProfile")
       .populate("mentorId", "name email learningProfile")
       .sort({ updatedAt: -1 });
 
-    res.json({ success: true, data: sessions });
+    // Attach course info from student's learningProfile when available
+    const enriched = sessions.map(s => {
+      const courseTitle = s.studentId?.learningProfile?.course?.title || s.studentId?.learningProfile?.skillTrack || "Unknown";
+      return Object.assign({}, s.toObject(), { courseTitle });
+    });
+
+    res.json({ success: true, data: enriched });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -200,6 +206,20 @@ router.get("/categories", async (req, res) => {
 
     const categories = Object.values(categoryMap).sort((a, b) => b.courseCount - a.courseCount);
     res.json({ success: true, data: categories, total: categories.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE a category by name — move courses to 'Uncategorized'
+router.delete("/categories/:name", async (req, res) => {
+  try {
+    const Course = require("../models/Course");
+    const name = req.params.name;
+    if (!name) return res.status(400).json({ message: "Category name is required" });
+
+    const result = await Course.updateMany({ category: name }, { $set: { category: "Uncategorized" } });
+    res.json({ success: true, message: `Moved ${result.modifiedCount} course(s) to Uncategorized` });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -485,27 +505,80 @@ router.get("/reports", async (req, res) => {
       { $limit: 8 }
     ]);
 
-    // New students last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
+    // New students timeline — supports range: daily, weekly, monthly, yearly
+    const range = (req.query.range || "weekly").toString();
+    let newStudentsChart = [];
 
-    const newStudentsRaw = await User.aggregate([
-      { $match: { role: "student", createdAt: { $gte: sevenDaysAgo } } },
-      { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ]);
-    const dateMap = Object.fromEntries(newStudentsRaw.map(r => [r._id, r.count]));
+    if (range === "daily") {
+      // last 24 hours, hourly buckets
+      const since = new Date();
+      since.setHours(since.getHours() - 23, 0, 0, 0);
+      const raw = await User.aggregate([
+        { $match: { role: "student", createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d %H:00", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]);
+      const map = Object.fromEntries(raw.map(r => [r._id, r.count]));
+      for (let i = 0; i < 24; i++) {
+        const d = new Date();
+        d.setHours(d.getHours() - (23 - i), 0, 0, 0);
+        const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0') + "-" + String(d.getDate()).padStart(2,'0') + " " + String(d.getHours()).padStart(2,'0') + ":00";
+        newStudentsChart.push({ label: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), count: map[key] || 0 });
+      }
+    } else if (range === "monthly") {
+      // last 30 days, daily buckets
+      const since = new Date();
+      since.setDate(since.getDate() - 29);
+      since.setHours(0,0,0,0);
+      const raw = await User.aggregate([
+        { $match: { role: "student", createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]);
+      const map = Object.fromEntries(raw.map(r => [r._id, r.count]));
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(since);
+        d.setDate(since.getDate() + i);
+        const iso = d.toISOString().split('T')[0];
+        newStudentsChart.push({ label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), count: map[iso] || 0 });
+      }
+    } else if (range === "yearly") {
+      // last 12 months, monthly buckets
+      const now = new Date();
+      const raw = await User.aggregate([
+        { $match: { role: "student", createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]);
+      const map = Object.fromEntries(raw.map(r => [r._id, r.count]));
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i, 1);
+        const key = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0');
+        newStudentsChart.push({ label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }), count: map[key] || 0 });
+      }
+    } else {
+      // default weekly (7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const newStudentsChart = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(sevenDaysAgo);
-      d.setDate(sevenDaysAgo.getDate() + i);
-      const iso = d.toISOString().split("T")[0];
-      newStudentsChart.push({
-        label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        count: dateMap[iso] || 0
-      });
+      const newStudentsRaw = await User.aggregate([
+        { $match: { role: "student", createdAt: { $gte: sevenDaysAgo } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]);
+      const dateMap = Object.fromEntries(newStudentsRaw.map(r => [r._id, r.count]));
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sevenDaysAgo);
+        d.setDate(sevenDaysAgo.getDate() + i);
+        const iso = d.toISOString().split("T")[0];
+        newStudentsChart.push({
+          label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          count: dateMap[iso] || 0
+        });
+      }
     }
 
     res.json({
@@ -522,7 +595,8 @@ router.get("/reports", async (req, res) => {
       },
       topCourses,
       trackDistribution: trackAgg.map(t => ({ track: t._id, count: t.count })),
-      newStudentsChart
+      newStudentsChart,
+      range: range
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

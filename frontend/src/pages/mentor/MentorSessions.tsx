@@ -8,7 +8,7 @@ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, User, CheckCircle2, X, Star, MessageSquare, Video, CalendarClock } from "lucide-react";
+import { Calendar, Clock, User, CheckCircle2, X, Star, MessageSquare, Video, CalendarClock, RefreshCw } from "lucide-react";
 
 interface Session {
   _id: string;
@@ -36,6 +36,13 @@ const MentorSessions = () => {
   const [loading, setLoading]   = useState(true);
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [assignedStudents, setAssignedStudents] = useState<Array<{_id:string,name:string,email:string}>>([]);
+
+  // Booking modal (mentor scheduling for a student)
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [bookStudentId, setBookStudentId] = useState<string | null>(null);
+  const [bookDate, setBookDate] = useState("");
+  const [booking, setBooking] = useState(false);
 
   // Complete session modal
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -57,16 +64,32 @@ const MentorSessions = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [profileRes, sessionsRes] = await Promise.all([
+      const [profileRes, sessionsRes, studentsRes] = await Promise.all([
         api.get("/users/profile"),
-        api.get("/mentor/sessions")
+        api.get("/mentor/sessions"),
+        api.get("/mentor/my-students")
       ]);
       if (profileRes.data.user.role !== "mentor") { navigate("/dashboard"); return; }
       setUser(profileRes.data.user);
       setSessions(sessionsRes.data.data || []);
+      setAssignedStudents(studentsRes.data.data || []);
     } catch (e: any) {
       if (e?.response?.status === 401) { navigate("/auth"); }
     } finally { setLoading(false); }
+  };
+
+  const handleBookSession = async () => {
+    if (!bookStudentId || !bookDate) { toast({ title: "Error", description: "Select student and date/time", variant: "destructive" }); return; }
+    const dt = new Date(bookDate);
+    if (dt <= new Date()) { toast({ title: "Error", description: "Date must be in the future", variant: "destructive" }); return; }
+    setBooking(true);
+    try {
+      await api.post("/sessions/book-by-mentor", { studentId: bookStudentId, date: bookDate });
+      toast({ title: "Session scheduled" });
+      setShowBookModal(false); setBookStudentId(null); setBookDate("");
+      fetchData();
+    } catch (e: any) { toast({ title: "Error", description: e?.response?.data?.message || "Failed", variant: "destructive" }); }
+    finally { setBooking(false); }
   };
 
   const handleComplete = async () => {
@@ -172,9 +195,19 @@ const MentorSessions = () => {
       <MentorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} userName={user?.name} userEmail={user?.email} onSignOut={handleSignOut} />
 
       <main className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-5xl mx-auto transition-all duration-300 ${sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"}`}>
-        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <h1 className="text-3xl font-extrabold">My <span className="text-primary">Sessions</span></h1>
-          <p className="text-muted-foreground text-sm mt-1">{sessions.length} total sessions</p>
+        <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold">My <span className="text-primary">Sessions</span></h1>
+            <p className="text-muted-foreground text-sm mt-1">{sessions.length} total sessions</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={fetchData} className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-border rounded-xl text-muted-foreground hover:text-foreground text-sm">
+              <RefreshCw size={15} />
+            </button>
+            <GlassButton variant="primary" onClick={() => setShowBookModal(true)}>
+              Schedule Session
+            </GlassButton>
+          </div>
         </motion.div>
 
         {/* Summary */}
@@ -335,6 +368,38 @@ const MentorSessions = () => {
                     {saving ? "Saving..." : "Mark Complete"}
                   </GlassButton>
                   <GlassButton variant="secondary" onClick={() => setCompletingId(null)}>Cancel</GlassButton>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Book session modal (mentor) */}
+      <AnimatePresence>
+        {showBookModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowBookModal(false)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="w-full max-w-md">
+              <GlassCard className="p-6">
+                <h2 className="text-xl font-bold mb-4">Schedule Session for Student</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Student</label>
+                    <select value={bookStudentId || ""} onChange={e => setBookStudentId(e.target.value)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground">
+                      <option value="">Select a student...</option>
+                      {assignedStudents.map(st => (
+                        <option key={st._id} value={st._id}>{st.name} — {st.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Date & Time</label>
+                    <input type="datetime-local" value={bookDate} onChange={e => setBookDate(e.target.value)} min={new Date().toISOString().slice(0,16)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground" />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <GlassButton variant="primary" onClick={handleBookSession} disabled={booking} className="flex-1">{booking ? "Scheduling..." : "Schedule"}</GlassButton>
+                  <GlassButton variant="secondary" onClick={() => setShowBookModal(false)}>Cancel</GlassButton>
                 </div>
               </GlassCard>
             </motion.div>

@@ -17,7 +17,13 @@ router.get("/", getAllCourses);
 router.get("/categories", async (req, res) => {
   try {
     const Course = require("../models/Course");
-    const courses = await Course.find({}, "title category").sort({ title: 1 });
+    const User = require("../models/User");
+
+    // Only include courses created by admin users
+    const admins = await User.find({ role: "admin" }).select("_id");
+    const adminIds = admins.map((a) => a._id);
+
+    const courses = await Course.find({ createdBy: { $in: adminIds } }, "title category").sort({ title: 1 });
 
     // Build unique categories with their courses
     const categoryMap = {};

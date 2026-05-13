@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
 import { motion } from "framer-motion";
 import {
@@ -23,8 +22,7 @@ import {
 const MentorPendingDashboard = () => {
   const navigate = useNavigate();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Sidebar removed for pending approval page
   const [loading, setLoading] = useState(true);
 
   const [mentor, setMentor] = useState<any>(null);
@@ -227,22 +225,10 @@ const MentorPendingDashboard = () => {
         onSignOut={logout}
       />
 
-      {/* Sidebar */}
-      <DashboardSidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={() =>
-          setSidebarCollapsed(!sidebarCollapsed)
-        }
-      />
+      {/* Sidebar intentionally removed for this page */}
 
       {/* Main */}
-      <main
-        className={`relative z-10 pt-28 pb-16 transition-all duration-500 ${
-          sidebarCollapsed ? "lg:pl-28" : "lg:pl-80"
-        }`}
-      >
+      <main className="relative z-10 pt-28 pb-16 transition-all duration-500 lg:pl-28">
         <div className="max-w-7xl mx-auto px-6 space-y-8">
           {/* Header */}
           <motion.div

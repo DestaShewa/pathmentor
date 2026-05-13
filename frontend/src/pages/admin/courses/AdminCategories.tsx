@@ -108,6 +108,21 @@ const AdminCategories = () => {
     }
   };
 
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const handleDeleteCategory = async (name: string) => {
+    if (!window.confirm(`Delete category "${name}"? This will move its courses to Uncategorized.`)) return;
+    setDeleting(name);
+    try {
+      await api.delete(`/admin/categories/${encodeURIComponent(name)}`);
+      toast({ title: "Category removed", description: `Moved courses from "${name}" to Uncategorized.` });
+      fetchCategories();
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.response?.data?.message || "Failed to delete category", variant: "destructive" });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const totalCourses = categories.reduce((s, c) => s + c.courseCount, 0);
 
   return (
@@ -243,6 +258,14 @@ const AdminCategories = () => {
                         >
                           <Pencil size={13} />
                         </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.name)}
+                          className="p-1.5 bg-white/5 text-red-400 rounded-lg hover:bg-red-500/10 transition-all"
+                          title="Delete"
+                          disabled={deleting === cat.name}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -316,12 +339,19 @@ const AdminCategories = () => {
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <button
-                        onClick={() => { setEditingCat(cat.name); setEditValue(cat.name); }}
-                        className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
-                      >
-                        <Pencil size={12} /> Rename
-                      </button>
+                      <div className="flex gap-3 items-center">
+                        <button
+                          onClick={() => { setEditingCat(cat.name); setEditValue(cat.name); }}
+                          className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
+                        >
+                          <Pencil size={12} /> Rename
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat.name)}
+                          className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+                          disabled={deleting === cat.name}
+                        ><Trash2 size={12} /> Delete</button>
+                      </div>
                     </td>
                   </tr>
                 );

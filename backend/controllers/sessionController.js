@@ -255,4 +255,52 @@ const postponeSession = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Session postponed", data: session });
 });
 
-module.exports = { bookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability };
+// Mentor can create a session on behalf of a student
+const mentorBookSession = asyncHandler(async (req, res) => {
+  const { studentId, date } = req.body;
+  if (!studentId || !date) return res.status(400).json({ message: "Student ID and date are required" });
+
+  const student = await User.findById(studentId);
+  if (!student || student.role !== "student") {
+    return res.status(404).json({ message: "Student not found" });
+  }
+
+  const mentorId = req.user._id;
+  const sessionDate = new Date(date);
+  if (sessionDate < new Date()) return res.status(400).json({ message: "Session date must be in the future" });
+
+  const thirtyMin = 30 * 60 * 1000;
+  const conflict = await Session.findOne({
+    mentorId,
+    status: "scheduled",
+    date: { $gte: new Date(sessionDate - thirtyMin), $lte: new Date(sessionDate.getTime() + thirtyMin) }
+  });
+  if (conflict) return res.status(400).json({ message: "You are not available at that time" });
+
+  const roomName = `pathmentor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const meetingLink = `https://meet.jit.si/${roomName}`;
+
+  const session = await Session.create({
+    studentId,
+    mentorId,
+    date: sessionDate,
+    status: "scheduled",
+    meetingLink
+  });
+
+  logActivity({ user: req.user._id, type: "SESSION_BOOKED", message: `Mentor created a session with ${student.name}` }).catch(() => {});
+
+  const { createNotification } = require("./notificationController");
+  await createNotification({
+    userId: studentId,
+    type: "info",
+    title: "Session Scheduled",
+    message: `Your mentor scheduled a session on ${sessionDate.toLocaleDateString()} at ${sessionDate.toLocaleTimeString()}`,
+    link: "/sessions",
+    icon: "calendar"
+  }).catch(err => console.error("Failed to notify student:", err));
+
+  res.status(201).json({ success: true, data: session });
+});
+
+module.exports = { bookSession, mentorBookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability };

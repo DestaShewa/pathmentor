@@ -70,14 +70,12 @@ import AdminReviews from "./pages/admin/courses/AdminReviews";
 import AdminAssignments from "./pages/admin/courses/AdminAssignments";
 
 // Chats
-import Conversations from "./pages/admin/chats/Conversations";
 import SupportTickets from "./pages/admin/chats/SupportTickets";
 import AdminChatPage from "./pages/admin/AdminChatPage";
 
 // Feedback
 import AllFeedback from "./pages/admin/feedback/AllFeedback";
-import FeedbackReports from "./pages/admin/feedback/FeedbackReports";
-import Ratings from "./pages/admin/feedback/Ratings";
+// FeedbackReports and Ratings removed
 
 // Settings
 import SystemSettings from "./pages/admin/settings/SystemSettings";
@@ -172,13 +170,10 @@ const App = () => (
 
               {/* Chats */}
               <Route path="user-chat" element={<AdminChatPage />} />
-              <Route path="chats" element={<Conversations />} />
               <Route path="tickets" element={<SupportTickets />} />
 
               {/* Feedback */}
               <Route path="feedback" element={<AllFeedback />} />
-              <Route path="feedback-reports" element={<FeedbackReports />} />
-              <Route path="ratings" element={<Ratings />} />
 
               {/* Settings */}
               <Route path="settings/profile" element={<ProfileSettings />} />

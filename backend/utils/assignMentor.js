@@ -36,9 +36,27 @@ const MAX_STUDENTS_PER_MENTOR = 20;
  */
 const assignMentor = async (student) => {
   const skillTrack  = (student.learningProfile?.skillTrack || "").toLowerCase().trim();
-  const courseTitle = (student.learningProfile?.course?.title || skillTrack).toLowerCase().trim();
+  let courseTitle = (student.learningProfile?.course?.title || "").toLowerCase().trim();
+  let courseCategory = "";
 
-  if (!skillTrack && !courseTitle) return null;
+  // If student.learningProfile.course.id exists, fetch course for category/title
+  if (student.learningProfile?.course?.id) {
+    try {
+      const Course = require("../models/Course");
+      const courseDoc = await Course.findById(student.learningProfile.course.id).select("title category").lean();
+      if (courseDoc) {
+        courseTitle = (courseDoc.title || courseTitle).toLowerCase().trim();
+        courseCategory = (courseDoc.category || "").toLowerCase().trim();
+      }
+    } catch (err) {
+      // ignore fetch errors and fall back to learningProfile values
+      console.error("assignMentor: failed to load course for student", err.message);
+    }
+  }
+
+  // Fallback: if no explicit courseTitle, use skillTrack
+  if (!courseTitle) courseTitle = skillTrack;
+  if (!skillTrack && !courseTitle && !courseCategory) return null;
 
   // Find all approved mentors under the cap
   const candidates = await User.find({
@@ -64,19 +82,21 @@ const assignMentor = async (student) => {
     if (!mentorTrack) continue; // skip mentors with no track set
 
     let score = 0;
-
-    // Exact match
-    if (mentorTrack === courseTitle || mentorTrack === skillTrack) {
-      score += 5;
+    // Exact match to course title or category
+    if (mentorTrack === courseTitle || mentorTrack === courseCategory || mentorTrack === skillTrack) {
+      score += 6;
     }
-    // Partial match (one contains the other)
+    // Strong partial match
     else if (
-      courseTitle.includes(mentorTrack) ||
-      mentorTrack.includes(courseTitle) ||
-      skillTrack.includes(mentorTrack) ||
-      mentorTrack.includes(skillTrack)
+      (courseTitle && (courseTitle.includes(mentorTrack) || mentorTrack.includes(courseTitle))) ||
+      (courseCategory && (courseCategory.includes(mentorTrack) || mentorTrack.includes(courseCategory))) ||
+      (skillTrack && (skillTrack.includes(mentorTrack) || mentorTrack.includes(skillTrack)))
     ) {
-      score += 3;
+      score += 4;
+    }
+    // We still allow looser matches (category contains keyword)
+    else if (courseCategory && mentorTrack && courseCategory.includes(mentorTrack)) {
+      score += 2;
     }
     else {
       // No match — skip this mentor entirely (strict matching)

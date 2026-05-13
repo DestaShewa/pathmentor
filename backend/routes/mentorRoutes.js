@@ -77,12 +77,17 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // Aggregate sessions by day of week (MongoDB: 1=Sunday .. 7=Saturday)
     const weeklyRaw = await Session.aggregate([
       { $match: { mentorId, createdAt: { $gte: sevenDaysAgo } } },
-      { $group: { _id: { $dateToString: { format: "%a", date: "$createdAt" } }, val: { $sum: 1 } } }
+      { $project: { day: { $dayOfWeek: "$createdAt" } } },
+      { $group: { _id: "$day", val: { $sum: 1 } } }
     ]);
-    const weeklyMap = Object.fromEntries(weeklyRaw.map(r => [r._id, r.val]));
-    const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => ({ name: d, val: weeklyMap[d] || 0 }));
+    const weeklyMapByNum = Object.fromEntries(weeklyRaw.map(r => [r._id, r.val]));
+    const dayNames = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"};
+    // Order as Mon..Sun
+    const order = [2,3,4,5,6,7,1];
+    const weeklyData = order.map(n => ({ name: dayNames[n], val: weeklyMapByNum[n] || 0 }));
 
     res.json({
       stats: {
@@ -98,6 +103,7 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
       weeklyData
     });
   } catch (err) {
+    console.error("Create project error:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -208,12 +214,16 @@ router.get("/course/:courseId/analysis", guard, authorize("mentor"), async (req,
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    // Aggregate progress by day of week (1=Sunday..7=Saturday)
     const weeklyRaw = await Progress.aggregate([
       { $match: { course: require("mongoose").Types.ObjectId.createFromHexString(courseId), createdAt: { $gte: sevenDaysAgo } } },
-      { $group: { _id: { $dateToString: { format: "%a", date: "$createdAt" } }, count: { $sum: 1 } } }
+      { $project: { day: { $dayOfWeek: "$createdAt" } } },
+      { $group: { _id: "$day", count: { $sum: 1 } } }
     ]);
-    const weeklyMap = Object.fromEntries(weeklyRaw.map(r => [r._id, r.count]));
-    const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => ({ day: d, count: weeklyMap[d] || 0 }));
+    const weeklyMapByNum = Object.fromEntries(weeklyRaw.map(r => [r._id, r.count]));
+    const dayNames = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"};
+    const order = [2,3,4,5,6,7,1];
+    const weeklyData = order.map(n => ({ day: dayNames[n], count: weeklyMapByNum[n] || 0 }));
 
     res.json({
       success: true,
@@ -545,6 +555,39 @@ router.put("/projects/:id/grade/:studentId", guard, authorize("mentor"), async (
       link: "/projects",
       icon: "star"
     }).catch(err => console.error("Failed to notify student:", err));
+
+    // Update student's progress/performance based on grade when reviewed
+    try {
+      if (status === "reviewed") {
+        const Progress = require("../models/Progress");
+        const { logActivity } = require("../utils/activityLogger");
+
+        // Determine points from grade (support percent or letter grades)
+        let points = 0;
+        if (grade && typeof grade === "string") {
+          const g = grade.trim();
+          if (g.endsWith("%")) {
+            const n = parseFloat(g.replace("%", ""));
+            if (!isNaN(n)) points = Math.max(0, Math.min(100, n));
+          } else {
+            const MAP = {"A+":100,"A":95,"A-":90,"B+":85,"B":80,"B-":75,"C+":70,"C":65,"C-":60,"D":50,"F":0};
+            points = MAP[g.toUpperCase()] ?? 0;
+          }
+        }
+
+        // If project links to a course, add xp to that course progress for student
+        if (project.course && points > 0) {
+          const prog = await Progress.findOne({ user: req.params.studentId, course: project.course });
+          if (prog) {
+            prog.xpEarned = (prog.xpEarned || 0) + Math.round(points);
+            await prog.save();
+            await logActivity({ user: req.params.studentId, type: "progress", message: `Earned ${Math.round(points)} XP from project ${project.title}`, meta: { project: project._id, course: project.course } }).catch(()=>{});
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update student progress after grading:", err.message);
+    }
 
     res.json({ success: true, data: project });
   } catch (err) {

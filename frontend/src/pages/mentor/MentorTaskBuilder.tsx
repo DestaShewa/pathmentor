@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import api from "@/services/api";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
@@ -10,7 +10,7 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, HelpCircle, Plus, Trash2, Save,
-  CheckCircle2, BookOpen, ChevronRight, Sparkles, Loader2
+  CheckCircle2, BookOpen, ChevronRight, Sparkles, Loader2, X
 } from "lucide-react";
 import aiService from "@/services/aiService";
 
@@ -36,6 +36,9 @@ const MentorTaskBuilder = () => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([
     { question: "", options: ["", "", "", ""], correctAnswer: 0 }
   ]);
+  const [existingQuiz, setExistingQuiz] = useState<any>(null);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [fetchingExisting, setFetchingExisting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
@@ -49,7 +52,14 @@ const MentorTaskBuilder = () => {
   useEffect(() => {
     if (selectedCourse) fetchLessons(selectedCourse);
     else setLessons([]);
+    setExistingQuiz(null);
+    setShowQuizModal(false);
   }, [selectedCourse]);
+
+  useEffect(() => {
+    if (selectedLesson) fetchExistingQuiz(selectedLesson);
+    else setExistingQuiz(null);
+  }, [selectedLesson]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -75,6 +85,16 @@ const MentorTaskBuilder = () => {
       const res = await api.get(`/mentor/course/${courseId}/lessons`);
       setLessons(res.data.data || []);
     } catch { setLessons([]); }
+  };
+
+  const fetchExistingQuiz = async (lessonId: string) => {
+    setFetchingExisting(true);
+    try {
+      const res = await api.get(`/mentor/quiz/${lessonId}`);
+      setExistingQuiz(res.data.data || null);
+    } catch (e) {
+      setExistingQuiz(null);
+    } finally { setFetchingExisting(false); }
   };
 
   const addQuestion = () => {
@@ -114,10 +134,24 @@ const MentorTaskBuilder = () => {
     try {
       await api.post("/mentor/quiz", { lessonId: selectedLesson, questions });
       setSaved(true);
+      // refresh existing quiz after save
+      if (selectedLesson) await fetchExistingQuiz(selectedLesson);
       toast({ title: "Quiz saved!", description: `${questions.length} question${questions.length !== 1 ? "s" : ""} saved successfully.` });
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed to save quiz", variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const viewQuiz = (e?: any) => {
+    if (!existingQuiz) return toast({ title: "No quiz", description: "Selected lesson has no quiz", variant: "destructive" });
+    setShowQuizModal(true);
+  };
+
+  const loadQuizForEdit = () => {
+    if (!existingQuiz) return;
+    const qs = existingQuiz.questions?.map((q: any) => ({ question: q.question, options: q.options.slice(), correctAnswer: q.correctAnswer })) || [];
+    if (qs.length) setQuestions(qs);
+    setSaved(false);
   };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
@@ -164,6 +198,13 @@ const MentorTaskBuilder = () => {
                 <option value="">Select lesson...</option>
                 {lessons.map(l => <option key={l._id} value={l._id}>{l.title}</option>)}
               </select>
+              {selectedLesson && (
+                <div className="flex items-center gap-2 mt-2">
+                  <button onClick={viewQuiz} className="text-xs px-3 py-1 rounded-xl bg-white/5 hover:bg-white/10">{fetchingExisting ? "Checking..." : "View Quiz"}</button>
+                  <button onClick={loadQuizForEdit} className="text-xs px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20">Load For Edit</button>
+                  {existingQuiz && <p className="text-xs text-amber-300 ml-2">Existing: {existingQuiz.questions?.length || 0} Q</p>}
+                </div>
+              )}
             </div>
           </div>
           {selectedCourse && lessons.length === 0 && (
@@ -211,6 +252,35 @@ const MentorTaskBuilder = () => {
             </motion.div>
           ))}
         </div>
+
+        <AnimatePresence>
+          {showQuizModal && existingQuiz && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowQuizModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <GlassCard className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold">Quiz Preview</h3>
+                    <button onClick={() => setShowQuizModal(false)} className="p-2 rounded hover:bg-white/5"><X size={16} /></button>
+                  </div>
+                  <div className="space-y-3">
+                    {existingQuiz.questions?.map((q: any, i: number) => (
+                      <div key={i} className="bg-white/5 p-4 rounded-xl">
+                        <p className="font-semibold">{i + 1}. {q.question}</p>
+                        <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                          {q.options.map((o: string, oi: number) => (
+                            <div key={oi} className={`p-2 rounded-xl ${q.correctAnswer === oi ? "bg-emerald-500/20 border border-emerald-400" : "bg-white/5"}`}>
+                              <p className="text-sm">{String.fromCharCode(65 + oi)}. {o}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Actions */}
         <div className="flex gap-3">
