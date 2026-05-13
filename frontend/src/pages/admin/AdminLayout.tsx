@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { initSocket } from "@/services/socket";
+import { initSocket, disconnectSocket } from "@/services/socket";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { 
-  LayoutDashboard, Users, UserCheck, BarChart3, 
-  Star, GraduationCap, Clock, 
-  Activity, FileText, CheckSquare, BookOpen, 
-  Layers, MessageSquare, Ticket, Settings, 
+import {
+  LayoutDashboard, Users, UserCheck, BarChart3,
+  Star, GraduationCap, Clock,
+  Activity, FileText, CheckSquare, BookOpen,
+  Layers, MessageSquare, Ticket, Settings,
   ShieldCheck, LogOut, Menu, ChevronDown,
   MessageCircle, Cog, Terminal, ClipboardList, Bell, User,
   UserCircle, X, Save
@@ -38,7 +38,8 @@ const AdminLayout = () => {
   const handleLogout = () => {
     localStorage.removeItem("token");
     sessionStorage.clear();
-    navigate("/auth"); 
+    disconnectSocket();
+    navigate("/auth");
   };
 
   useEffect(() => {
@@ -191,7 +192,7 @@ const AdminLayout = () => {
       <main className="flex-1 overflow-y-auto relative z-10 flex flex-col">
         <header className="h-20 shrink-0 border-b border-white/10 bg-slate-900/20 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="text-sm font-medium text-slate-500">
-             Admin / {location.pathname.split('/').pop()?.replace('-', ' ')}
+            Admin / {location.pathname.split('/').pop()?.replace('-', ' ')}
           </div>
 
           <div className="flex items-center gap-6">
@@ -213,7 +214,7 @@ const AdminLayout = () => {
 
               {profileOpen && (
                 <div className="absolute right-0 mt-3 w-48 bg-[#0f172a]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <button 
+                  <button
                     onClick={() => { setIsEditModalOpen(true); setProfileOpen(false); }}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
                   >
@@ -221,7 +222,7 @@ const AdminLayout = () => {
                     Edit Profile
                   </button>
                   <div className="h-[1px] bg-white/5 my-1" />
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#f87171] hover:bg-red-500/10 transition-colors"
                   >

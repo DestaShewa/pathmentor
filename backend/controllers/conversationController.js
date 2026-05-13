@@ -7,7 +7,7 @@ const Match = require("../models/Match");
 exports.getConversations = async (req, res) => {
   try {
     const userId = req.user._id;
-    
+
     const conversations = await Conversation.find({
       participants: userId,
       isActive: true
@@ -21,13 +21,13 @@ exports.getConversations = async (req, res) => {
         }
       })
       .sort({ lastMessageAt: -1 });
-    
+
     // Format conversations with other participant info
     const formatted = conversations.map(conv => {
       const otherParticipant = conv.participants.find(
         p => p._id.toString() !== userId.toString()
       );
-      
+
       return {
         _id: conv._id,
         participant: otherParticipant,
@@ -39,7 +39,31 @@ exports.getConversations = async (req, res) => {
         createdAt: conv.createdAt
       };
     });
-    
+
+    // Add Assigned Students who don't have a conversation yet (for mentors)
+    if (req.user.role === "mentor") {
+      const assignedStudents = await User.find({ assignedMentor: userId, role: "student" })
+        .select("name email avatar role learningProfile lastSeen isOnline");
+
+      const existingParticipantIds = new Set(formatted.map(c => c.participant?._id.toString()));
+
+      for (const student of assignedStudents) {
+        if (!existingParticipantIds.has(student._id.toString())) {
+          formatted.push({
+            _id: `virtual-${student._id}`,
+            participant: student,
+            lastMessage: null,
+            lastMessageAt: null,
+            unreadCount: 0,
+            isTyping: false,
+            type: "direct",
+            createdAt: student.createdAt,
+            isVirtual: true
+          });
+        }
+      }
+    }
+
     res.json({ success: true, conversations: formatted });
   } catch (error) {
     console.error("Get conversations error:", error);
@@ -52,17 +76,17 @@ exports.getOrCreateConversation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { otherUserId, type = "direct" } = req.body;
-    
+
     if (!otherUserId) {
       return res.status(400).json({ message: "otherUserId is required" });
     }
-    
+
     // Check if other user exists
     const otherUser = await User.findById(otherUserId);
     if (!otherUser) {
       return res.status(404).json({ message: "User not found" });
     }
-    
+
     // For study buddy conversations, check if match exists and is accepted
     if (type === "study_buddy") {
       const match = await Match.findOne({
@@ -72,28 +96,28 @@ exports.getOrCreateConversation = async (req, res) => {
         ],
         status: "accepted"
       });
-      
+
       if (!match) {
-        return res.status(403).json({ 
-          message: "Study buddy connection must be accepted before chatting" 
+        return res.status(403).json({
+          message: "Study buddy connection must be accepted before chatting"
         });
       }
     }
-    
+
     // Find or create conversation
     const conversation = await Conversation.findOrCreate(
       userId,
       otherUserId,
       type
     );
-    
+
     // Populate for response
     await conversation.populate("participants", "name email avatar role learningProfile lastSeen isOnline");
-    
+
     const otherParticipant = conversation.participants.find(
       p => p._id.toString() !== userId.toString()
     );
-    
+
     res.json({
       success: true,
       conversation: {
@@ -115,17 +139,17 @@ exports.getMessages = async (req, res) => {
     const userId = req.user._id;
     const { conversationId } = req.params;
     const { page = 1, limit = 50 } = req.query;
-    
+
     // Check if user is participant
     const conversation = await Conversation.findOne({
       _id: conversationId,
       participants: userId
     });
-    
+
     if (!conversation) {
       return res.status(404).json({ message: "Conversation not found" });
     }
-    
+
     // Get messages
     const messages = await Message.find({
       conversation: conversationId,
@@ -135,20 +159,20 @@ exports.getMessages = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
-    
+
     // Mark messages as read
     const unreadMessages = messages.filter(
       msg => msg.sender.toString() !== userId.toString() &&
-             !msg.readBy.some(r => r.user.toString() === userId.toString())
+        !msg.readBy.some(r => r.user.toString() === userId.toString())
     );
-    
+
     for (const msg of unreadMessages) {
       await msg.markAsRead(userId);
     }
-    
+
     // Reset unread count
     await conversation.resetUnread(userId);
-    
+
     res.json({
       success: true,
       messages: messages.reverse(),
@@ -165,22 +189,23 @@ exports.getMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { conversationId, message, messageType = "text", replyTo } = req.body;
-    
+    const { conversationId: bodyConvId, message, messageType = "text", replyTo } = req.body;
+    const conversationId = req.params.conversationId || bodyConvId;
+
     if (!conversationId || !message) {
       return res.status(400).json({ message: "conversationId and message are required" });
     }
-    
+
     // Check if user is participant
     const conversation = await Conversation.findOne({
       _id: conversationId,
       participants: userId
     });
-    
+
     if (!conversation) {
       return res.status(404).json({ message: "Conversation not found" });
     }
-    
+
     // Process attachments if any
     const attachments = [];
     if (req.files && req.files.length > 0) {
@@ -194,7 +219,7 @@ exports.sendMessage = async (req, res) => {
         });
       }
     }
-    
+
     // Create message
     const newMessage = new Message({
       conversation: conversationId,
@@ -204,23 +229,23 @@ exports.sendMessage = async (req, res) => {
       attachments,
       replyTo: replyTo || undefined
     });
-    
+
     await newMessage.save();
     await newMessage.populate("sender", "name email avatar role");
-    
+
     // Update conversation
     conversation.lastMessage = newMessage._id;
     conversation.lastMessageAt = new Date();
-    
+
     // Increment unread for other participants
     for (const participantId of conversation.participants) {
       if (participantId.toString() !== userId.toString()) {
         await conversation.incrementUnread(participantId);
       }
     }
-    
+
     await conversation.save();
-    
+
     // Emit socket event
     const io = req.app.get("io");
     if (io) {
@@ -229,7 +254,7 @@ exports.sendMessage = async (req, res) => {
         conversationId,
         message: newMessage
       });
-      
+
       // Emit conversation update to all participants
       for (const participantId of conversation.participants) {
         io.to(`user:${participantId}`).emit("conversation_updated", {
@@ -239,7 +264,7 @@ exports.sendMessage = async (req, res) => {
         });
       }
     }
-    
+
     res.status(201).json({ success: true, message: newMessage });
   } catch (error) {
     console.error("Send message error:", error);
@@ -252,30 +277,30 @@ exports.markAsRead = async (req, res) => {
   try {
     const userId = req.user._id;
     const { conversationId } = req.params;
-    
+
     const conversation = await Conversation.findOne({
       _id: conversationId,
       participants: userId
     });
-    
+
     if (!conversation) {
       return res.status(404).json({ message: "Conversation not found" });
     }
-    
+
     // Mark all unread messages as read
     const unreadMessages = await Message.find({
       conversation: conversationId,
       sender: { $ne: userId },
       "readBy.user": { $ne: userId }
     });
-    
+
     for (const msg of unreadMessages) {
       await msg.markAsRead(userId);
     }
-    
+
     // Reset unread count
     await conversation.resetUnread(userId);
-    
+
     // Emit socket event
     const io = req.app.get("io");
     if (io) {
@@ -284,7 +309,7 @@ exports.markAsRead = async (req, res) => {
         userId
       });
     }
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error("Mark as read error:", error);
@@ -297,26 +322,30 @@ exports.deleteConversation = async (req, res) => {
   try {
     const userId = req.user._id;
     const { conversationId } = req.params;
-    
+
     const conversation = await Conversation.findOne({
       _id: conversationId,
       participants: userId
     });
-    
+
     if (!conversation) {
       return res.status(404).json({ message: "Conversation not found" });
     }
-    
-    // Soft delete all messages
-    await Message.updateMany(
-      { conversation: conversationId },
-      { $set: { deletedAt: new Date() } }
-    );
-    
-    // Mark conversation as inactive
-    conversation.isActive = false;
-    await conversation.save();
-    
+
+    // Hard delete all messages in this conversation
+    await Message.deleteMany({ conversation: conversationId });
+
+    // Hard delete the conversation itself
+    await Conversation.findByIdAndDelete(conversationId);
+
+    // Emit socket event
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`conversation:${conversationId}`).emit("conversation_deleted", {
+        conversationId
+      });
+    }
+
     res.json({ success: true, message: "Conversation deleted" });
   } catch (error) {
     console.error("Delete conversation error:", error);

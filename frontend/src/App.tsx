@@ -26,6 +26,7 @@ import VideoRoom from "./pages/VideoRoom";
 import StudentProjects from "./pages/StudentProjects";
 import StudyRooms from "./pages/StudyRooms";
 import StudyRoomDetail from "./pages/StudyRoomDetail";
+import ProgressPage from "./pages/ProgressPage";
 import SupportPage from "./pages/SupportPage";
 
 // Mentor Pages
@@ -95,102 +96,103 @@ const App = () => (
         <Toaster />
         <Sonner />
 
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-          {/* PUBLIC */}
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+            {/* PUBLIC */}
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* STUDENT */}
-          <Route path="/roadmap" element={<Roadmap />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/courses" element={<BrowseCourses />} />
-          <Route path="/lessons" element={<Lessons />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/achievements" element={<Achievements />} />
-          <Route path="/announcements" element={<Announcements />} />
-          <Route path="/study-buddies" element={<StudyBuddies />} />
-          <Route path="/sessions" element={<Sessions />} />
-          <Route path="/room/:id" element={<VideoRoom />} />
-          <Route path="/projects" element={<StudentProjects />} />
-          <Route path="/study-rooms" element={<StudyRooms />} />
-          <Route path="/study-rooms/:id" element={<StudyRoomDetail />} />
-          <Route path="/support" element={<SupportPage />} />
+            {/* STUDENT */}
+            <Route path="/roadmap" element={<Roadmap />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/courses" element={<BrowseCourses />} />
+            <Route path="/lessons" element={<Lessons />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/announcements" element={<Announcements />} />
+            <Route path="/study-buddies" element={<StudyBuddies />} />
+            <Route path="/sessions" element={<Sessions />} />
+            <Route path="/room/:id" element={<VideoRoom />} />
+            <Route path="/projects" element={<StudentProjects />} />
+            <Route path="/study-rooms" element={<StudyRooms />} />
+            <Route path="/study-rooms/:id" element={<StudyRoomDetail />} />
+            <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/support" element={<SupportPage />} />
 
-          {/* MENTOR */}
-          <Route path="/mentor/pending" element={<MentorPendingApproval />} />
-          <Route path="/mentor/dashboard" element={<MentorDashboard />} />
-          <Route path="/mentor/task/:id" element={<MentorTaskBuilder />} />
-          <Route path="/mentor/review" element={<MentorReviewQueue />} />
-          <Route path="/mentor/sessions" element={<MentorSessions />} />
-          <Route path="/mentor/chat" element={<MentorChat />} />
-          <Route path="/mentor/announcements" element={<MentorAnnouncements />} />
-          <Route path="/mentor/projects" element={<MentorProjects />} />
-          <Route path="/mentor/settings" element={<MentorSettings />} />
+            {/* MENTOR */}
+            <Route path="/mentor/pending" element={<MentorPendingApproval />} />
+            <Route path="/mentor/dashboard" element={<MentorDashboard />} />
+            <Route path="/mentor/task/:id" element={<MentorTaskBuilder />} />
+            <Route path="/mentor/review" element={<MentorReviewQueue />} />
+            <Route path="/mentor/sessions" element={<MentorSessions />} />
+            <Route path="/mentor/chat" element={<MentorChat />} />
+            <Route path="/mentor/announcements" element={<MentorAnnouncements />} />
+            <Route path="/mentor/projects" element={<MentorProjects />} />
+            <Route path="/mentor/settings" element={<MentorSettings />} />
 
-          {/* MENTOR CLASSES */}
-          <Route path="/mentor/classes" element={<MentorClasses />} />
-          <Route path="/mentor/class/:id" element={<MentorClassDetails />} />
-          <Route path="/mentor/upload/:id" element={<ClassUpload />} />
+            {/* MENTOR CLASSES */}
+            <Route path="/mentor/classes" element={<MentorClasses />} />
+            <Route path="/mentor/class/:id" element={<MentorClassDetails />} />
+            <Route path="/mentor/upload/:id" element={<ClassUpload />} />
 
-          {/* ANALYSIS PAGE */}
-          <Route path="/mentor/analysis/:id" element={<MentorCourseAnalysis />} />
+            {/* ANALYSIS PAGE */}
+            <Route path="/mentor/analysis/:id" element={<MentorCourseAnalysis />} />
 
-          
-          
-          {/* ADMIN */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="activities" element={<Activities />} />
 
-            {/* Mentors */}
-            <Route path="mentors" element={<AllMentors />} />
-            <Route path="applications" element={<MentorApplications />} />
-            <Route path="performance" element={<MentorPerformance />} />
-            <Route path="mentor-reviews" element={<MentorReviews />} />
 
-            {/* Students */}
-            <Route path="allstudents" element={<AllStudents />} />
-            <Route path="enrollments" element={<StudentEnrollments />} />
-            <Route path="progress" element={<StudentProgress />} />
-            <Route path="grades" element={<GradesStatus />} />
-            <Route path="reports" element={<StudentReports />} />
+            {/* ADMIN */}
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="activities" element={<Activities />} />
 
-            {/* Courses */}
-            <Route path="all-courses" element={<AdminCourses />} />
-            <Route path="categories" element={<AdminCategories />} />
-            <Route path="lessons" element={<AdminLessons />} />
-            <Route path="reviews" element={<AdminReviews />} />
-            <Route path="assignments" element={<AdminAssignments />} />
+              {/* Mentors */}
+              <Route path="mentors" element={<AllMentors />} />
+              <Route path="applications" element={<MentorApplications />} />
+              <Route path="performance" element={<MentorPerformance />} />
+              <Route path="mentor-reviews" element={<MentorReviews />} />
 
-            {/* Chats */}
-            <Route path="user-chat" element={<AdminChatPage />} />
-            <Route path="chats" element={<Conversations />} />
-            <Route path="tickets" element={<SupportTickets />} />
+              {/* Students */}
+              <Route path="allstudents" element={<AllStudents />} />
+              <Route path="enrollments" element={<StudentEnrollments />} />
+              <Route path="progress" element={<StudentProgress />} />
+              <Route path="grades" element={<GradesStatus />} />
+              <Route path="reports" element={<StudentReports />} />
 
-            {/* Feedback */}
-            <Route path="feedback" element={<AllFeedback />} />
-            <Route path="feedback-reports" element={<FeedbackReports />} />
-            <Route path="ratings" element={<Ratings />} />
+              {/* Courses */}
+              <Route path="all-courses" element={<AdminCourses />} />
+              <Route path="categories" element={<AdminCategories />} />
+              <Route path="lessons" element={<AdminLessons />} />
+              <Route path="reviews" element={<AdminReviews />} />
+              <Route path="assignments" element={<AdminAssignments />} />
 
-            {/* Settings */}
-            <Route path="settings/profile" element={<ProfileSettings />} />
-            <Route path="settings/system" element={<SystemSettings />} />
+              {/* Chats */}
+              <Route path="user-chat" element={<AdminChatPage />} />
+              <Route path="chats" element={<Conversations />} />
+              <Route path="tickets" element={<SupportTickets />} />
 
-            {/* Announcements & Leaderboard */}
-            <Route path="announcements" element={<AdminAnnouncements />} />
-            <Route path="leaderboard" element={<AdminLeaderboard />} />
-          </Route>
+              {/* Feedback */}
+              <Route path="feedback" element={<AllFeedback />} />
+              <Route path="feedback-reports" element={<FeedbackReports />} />
+              <Route path="ratings" element={<Ratings />} />
 
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+              {/* Settings */}
+              <Route path="settings/profile" element={<ProfileSettings />} />
+              <Route path="settings/system" element={<SystemSettings />} />
+
+              {/* Announcements & Leaderboard */}
+              <Route path="announcements" element={<AdminAnnouncements />} />
+              <Route path="leaderboard" element={<AdminLeaderboard />} />
+            </Route>
+
+            {/* 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
       </ErrorBoundary>
     </TooltipProvider>
   </QueryClientProvider>

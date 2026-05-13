@@ -28,6 +28,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const studyRoomRoutes = require("./routes/studyRoomRoutes");
 const supportTicketRoutes = require("./routes/supportTicketRoutes");
 const conversationRoutes = require("./routes/conversationRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const PORT = process.env.PORT || 5001;
 
@@ -90,6 +91,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/study-rooms", studyRoomRoutes);
 app.use("/api/support-tickets", supportTicketRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.use(errorHandler);
 

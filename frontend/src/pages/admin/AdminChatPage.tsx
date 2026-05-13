@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import api from "@/services/api";
+import { toast } from "sonner";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -30,6 +31,24 @@ const AdminChatPage = () => {
       console.error("Failed to fetch user:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedConversation) return;
+
+    try {
+      await api.delete(`/conversations/${selectedConversation._id}`);
+      toast.success("Conversation deleted successfully");
+      setSelectedConversation(null);
+      // The ConversationList will refresh itself if we can trigger it, 
+      // or we can refresh the page. But usually setting selected to null 
+      // and having ConversationList handle its own state is better.
+      // For now, a simple window reload is the most reliable way to sync all list states.
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      toast.error("Failed to delete conversation");
     }
   };
 
@@ -93,6 +112,7 @@ const AdminChatPage = () => {
           <ChatWindow
             conversation={selectedConversation}
             currentUserId={currentUser?._id}
+            onDeleteConversation={handleDeleteConversation}
           />
         </motion.div>
       </div>

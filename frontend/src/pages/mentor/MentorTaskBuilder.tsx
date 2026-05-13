@@ -10,8 +10,9 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, HelpCircle, Plus, Trash2, Save,
-  CheckCircle2, BookOpen, ChevronRight
+  CheckCircle2, BookOpen, ChevronRight, Sparkles, Loader2
 } from "lucide-react";
+import aiService from "@/services/aiService";
 
 interface Course { _id: string; title: string; }
 interface Lesson { _id: string; title: string; level?: { title: string }; }
@@ -23,11 +24,11 @@ const MentorTaskBuilder = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [user, setUser]       = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen]           = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [selectedCourse, setSelectedCourse] = useState(id && id !== "general" ? id : "");
@@ -36,7 +37,8 @@ const MentorTaskBuilder = () => {
     { question: "", options: ["", "", "", ""], correctAnswer: 0 }
   ]);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -95,6 +97,8 @@ const MentorTaskBuilder = () => {
   const setCorrect = (qIdx: number, oIdx: number) => {
     setQuestions(prev => prev.map((q, i) => i === qIdx ? { ...q, correctAnswer: oIdx } : q));
   };
+
+
 
   const handleSave = async () => {
     if (!selectedLesson) {
@@ -165,6 +169,8 @@ const MentorTaskBuilder = () => {
           {selectedCourse && lessons.length === 0 && (
             <p className="text-xs text-amber-400">No lessons in this course yet. <button onClick={() => navigate(`/mentor/upload/${selectedCourse}`)} className="underline">Add a lesson first.</button></p>
           )}
+
+
         </GlassCard>
 
         {/* Questions */}

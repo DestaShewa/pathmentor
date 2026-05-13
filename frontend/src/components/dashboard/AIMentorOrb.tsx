@@ -1,7 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, X, Send, Sparkles, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import aiService, { ChatMessage } from "@/services/aiService";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface AIMentorOrbProps {
   isOpen?: boolean;
@@ -11,9 +14,53 @@ interface AIMentorOrbProps {
 export const AIMentorOrb = ({ isOpen: controlledOpen, onToggle }: AIMentorOrbProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const [message, setMessage] = useState("");
-  
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const { toast } = useToast();
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const isOpen = controlledOpen ?? internalOpen;
   const handleToggle = onToggle ?? (() => setInternalOpen(!internalOpen));
+
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isTyping]);
+
+  const handleSend = async (text: string = message) => {
+    if (!text.trim() || isTyping) return;
+
+    const userMessage: ChatMessage = { role: "user", content: text };
+    setMessages(prev => [...prev, userMessage]);
+    setMessage("");
+    setIsTyping(true);
+
+    try {
+      const response = await aiService.chat(text, messages);
+      const assistantMessage: ChatMessage = { role: "assistant", content: response.response };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("AI Chat Error:", error);
+      toast({
+        title: "AI Mentor Offline",
+        description: "The AI service is currently unavailable. Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const handleQuickAction = async (action: string) => {
+    if (action === "Get a summary") {
+      handleSend("Can you summarize my recent progress?");
+    } else if (action === "Get motivation") {
+      handleSend("Give me some motivation for my studies today!");
+    } else {
+      handleToggle();
+    }
+  };
 
   const quickActions = [
     { label: "Get a summary", icon: Sparkles },
@@ -83,20 +130,45 @@ export const AIMentorOrb = ({ isOpen: controlledOpen, onToggle }: AIMentorOrbPro
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="p-4 space-y-2">
-              {quickActions.map((action, index) => (
-                <motion.button
-                  key={action.label}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left"
-                >
-                  <action.icon className="w-4 h-4 text-primary" />
-                  <span className="text-sm">{action.label}</span>
-                </motion.button>
+            {/* Messages Area */}
+            <div className="h-64 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+              {messages.length === 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground mb-4">How can I help you today?</p>
+                  {quickActions.map((action, index) => (
+                    <motion.button
+                      key={action.label}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      onClick={() => handleQuickAction(action.label)}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-left"
+                    >
+                      <action.icon className="w-4 h-4 text-primary" />
+                      <span className="text-sm">{action.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <div key={i} className={cn(
+                  "max-w-[85%] p-3 rounded-2xl text-sm",
+                  msg.role === 'user'
+                    ? "ml-auto bg-primary text-primary-foreground rounded-tr-none"
+                    : "mr-auto bg-white/10 text-white rounded-tl-none"
+                )}>
+                  {msg.content}
+                </div>
               ))}
+
+              {isTyping && (
+                <div className="mr-auto bg-white/10 p-3 rounded-2xl rounded-tl-none flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">Thinking...</span>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
 
             {/* Input */}
@@ -106,13 +178,16 @@ export const AIMentorOrb = ({ isOpen: controlledOpen, onToggle }: AIMentorOrbPro
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="Type your question..."
                   className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center"
+                  onClick={() => handleSend()}
+                  disabled={isTyping}
+                  className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center disabled:opacity-50"
                 >
                   <Send className="w-4 h-4 text-primary-foreground" />
                 </motion.button>

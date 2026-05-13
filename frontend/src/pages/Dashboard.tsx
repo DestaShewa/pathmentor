@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/services/api";
-import { initSocket } from "@/services/socket";
+import { initSocket, disconnectSocket } from "@/services/socket";
 import { PersonaType } from "@/lib/registrationTypes";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
@@ -19,11 +19,12 @@ import { WeeklyGrowthReport } from "@/components/dashboard/WeeklyGrowthReport";
 import { SmartReminder } from "@/components/dashboard/SmartReminder";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
-import { 
-  ArrowRight, Sparkles, CheckCircle2, Moon, Sun, 
+import {
+  ArrowRight, Sparkles, CheckCircle2, Moon, Sun,
   Bell, Shield, Monitor, PlayCircle, BookOpen, Clock, Star,
-  User, Calendar, MessageSquare
+  User, Calendar, MessageSquare, Loader2
 } from "lucide-react";
+import aiService from "@/services/aiService";
 
 interface UserPreferences {
   skill_track: string;
@@ -66,6 +67,8 @@ const Dashboard = () => {
     xpEarned: number;
   } | null>(null);
   const [streak, setStreak] = useState({ current: 0, longest: 0 });
+  const [aiRecommendation, setAiRecommendation] = useState<string>("");
+  const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -82,16 +85,16 @@ const Dashboard = () => {
 
       if (userData.learningProfile) {
         setPreferences({
-          skill_track:          userData.learningProfile.skillTrack || "",
-          experience_level:     userData.learningProfile.experienceLevel || "",
-          persona_type:         userData.learningProfile.persona,
-          starting_stage:       userData.learningProfile.experienceLevel || "Beginner",
-          lesson_length:        userData.learningProfile.commitmentTime || "1h",
-          content_priority:     "Mixed",
+          skill_track: userData.learningProfile.skillTrack || "",
+          experience_level: userData.learningProfile.experienceLevel || "",
+          persona_type: userData.learningProfile.persona,
+          starting_stage: userData.learningProfile.experienceLevel || "Beginner",
+          lesson_length: userData.learningProfile.commitmentTime || "1h",
+          content_priority: "Mixed",
           project_recommendation: "",
-          commitment_time:      userData.learningProfile.commitmentTime || "1h",
-          learning_goal:        userData.learningProfile.learningGoal || "",
-          learning_style:       userData.learningProfile.learningStyle || "Visual",
+          commitment_time: userData.learningProfile.commitmentTime || "1h",
+          learning_goal: userData.learningProfile.learningGoal || "",
+          learning_style: userData.learningProfile.learningStyle || "Visual",
         });
       }
 
@@ -103,13 +106,13 @@ const Dashboard = () => {
             api.get(`/progress/course/${courseId}`),
             api.get("/progress/streak"),
           ]);
-          
+
           if (progressRes.data.success) {
             setCourseProgress(progressRes.data);
           } else {
             setCourseProgress({ totalLessons: 0, completedLessons: 0, progressPercentage: 0, xpEarned: 0 });
           }
-          
+
           if (streakRes.data.success) {
             setStreak(streakRes.data.streak || { current: 0, longest: 0 });
           }
@@ -145,20 +148,34 @@ const Dashboard = () => {
 
   const handleSignOut = () => {
     localStorage.removeItem("token");
+    disconnectSocket();
     navigate("/auth");
+  };
+
+  const handleGetRecommendation = async () => {
+    setLoadingAi(true);
+    try {
+      const topic = preferences?.skill_track || enrolledCourse?.title || "Web Development";
+      const res = await aiService.getRecommendation(topic);
+      setAiRecommendation(res.suggestion || "Insights fetched!");
+    } catch (e) {
+      setAiRecommendation("Focus on completing your assigned lessons first, then practice building small projects to cement your understanding.");
+    } finally {
+      setLoadingAi(false);
+    }
   };
 
   if (isLoading) return <div className="min-h-screen bg-background" />;
 
-  const userName  = user?.name || user?.username || "Learner";
+  const userName = user?.name || user?.username || "Learner";
   const userEmail = user?.email || "";
   const enrolledCourse = user?.learningProfile?.course;
-  const courseId       = enrolledCourse?.id;
-  const courseTitle    = enrolledCourse?.title || preferences?.skill_track || "Your Course";
+  const courseId = enrolledCourse?.id;
+  const courseTitle = enrolledCourse?.title || preferences?.skill_track || "Your Course";
 
-  const totalLessons     = courseProgress?.totalLessons     ?? 0;
+  const totalLessons = courseProgress?.totalLessons ?? 0;
   const completedLessons = courseProgress?.completedLessons ?? 0;
-  const progressPercent  = courseProgress?.progressPercentage ?? 0;
+  const progressPercent = courseProgress?.progressPercentage ?? 0;
   const newLessons: any[] = [];
   const finishedLessons: any[] = [];
 
@@ -166,7 +183,7 @@ const Dashboard = () => {
     <div className={`min-h-screen relative ${isDarkMode ? "bg-background text-white" : "bg-slate-50 text-slate-900"}`}>
       <ParticlesBackground />
       <DashboardTopNav userName={userName} userEmail={userEmail} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-      
+
       <DashboardSidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -175,17 +192,18 @@ const Dashboard = () => {
         activeView={activeView}
         onViewChange={(view) => {
           // Dedicated pages — navigate away
-          if (view === "lessons")       { navigate("/lessons");       return; }
-          if (view === "courses")       { navigate("/courses");       return; }
-          if (view === "leaderboard")   { navigate("/leaderboard");   return; }
-          if (view === "achievements")  { navigate("/achievements");  return; }
+          if (view === "lessons") { navigate("/lessons"); return; }
+          if (view === "courses") { navigate("/courses"); return; }
+          if (view === "leaderboard") { navigate("/leaderboard"); return; }
+          if (view === "achievements") { navigate("/achievements"); return; }
           if (view === "announcements") { navigate("/announcements"); return; }
-          if (view === "community")     { navigate("/study-buddies"); return; }
-          if (view === "sessions")      { navigate("/sessions");      return; }
-          if (view === "profile")       { navigate("/profile");       return; }
-          if (view === "settings")      { navigate("/settings");      return; }
-          if (view === "projects")      { navigate("/projects");      return; }
-          // In-page views (dashboard, progress)
+          if (view === "community") { navigate("/study-buddies"); return; }
+          if (view === "sessions") { navigate("/sessions"); return; }
+          if (view === "profile") { navigate("/profile"); return; }
+          if (view === "settings") { navigate("/settings"); return; }
+          if (view === "projects") { navigate("/projects"); return; }
+          if (view === "progress") { navigate("/progress"); return; }
+          // In-page views (dashboard)
           setActiveView(view);
         }}
         pendingMode={user?.status === 'pending'}
@@ -194,12 +212,12 @@ const Dashboard = () => {
       <main className={`relative z-10 pt-24 pb-24 transition-all duration-300 ${sidebarCollapsed ? "lg:pl-24" : "lg:pl-72"}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <AnimatePresence mode="wait">
-            
+
             {/* --- DASHBOARD VIEW --- */}
             {activeView === "dashboard" && (
               <motion.div key="dash" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <WelcomeSection userName={userName} personaType={preferences?.persona_type} />
-                
+
                 {/* Smart Reminder Banner */}
                 <SmartReminder />
 
@@ -211,7 +229,7 @@ const Dashboard = () => {
                     learningStyle={preferences?.learning_style || "Visual"}
                     streak={streak.current}
                   />
-                  
+
                   {/* Daily Motivation + Weekly Growth Report */}
                   <div className="grid lg:grid-cols-2 gap-6">
                     <DailyMotivation />
@@ -261,7 +279,7 @@ const Dashboard = () => {
                             </p>
                             <div className="flex items-center gap-3 mt-1.5">
                               <div className="flex-1 bg-white/10 rounded-full h-2 overflow-hidden">
-                                <div 
+                                <div
                                   className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
                                   style={{ width: `${progressPercent}%` }}
                                 />
@@ -270,9 +288,9 @@ const Dashboard = () => {
                             </div>
                           </div>
                         </div>
-                        <GlassButton 
-                          variant="primary" 
-                          className="w-full" 
+                        <GlassButton
+                          variant="primary"
+                          className="w-full"
                           onClick={() => navigate("/lessons")}
                         >
                           <PlayCircle size={16} /> Continue Learning
@@ -286,9 +304,9 @@ const Dashboard = () => {
                         <div className="flex-1">
                           <p className="font-medium text-foreground">No course enrolled</p>
                           <p className="text-sm">Browse and enroll in a course to start learning.</p>
-                          <GlassButton 
-                            variant="secondary" 
-                            size="sm" 
+                          <GlassButton
+                            variant="secondary"
+                            size="sm"
                             className="mt-2"
                             onClick={() => navigate("/courses")}
                           >
@@ -351,6 +369,28 @@ const Dashboard = () => {
                     )}
                   </GlassCard>
 
+                  {/* ── AI Career Planner ── */}
+                  <GlassCard className="p-6">
+                    <h3 className="font-bold flex items-center gap-2 text-primary mb-4">
+                      <Sparkles size={18} /> AI Career Planner
+                    </h3>
+                    {!aiRecommendation && !loadingAi ? (
+                      <div className={"text-center py-4"}>
+                        <p className="text-sm text-muted-foreground mb-4">Get a personalized learning roadmap and project ideas based on your track.</p>
+                        <GlassButton variant="primary" onClick={handleGetRecommendation}>Generate Recommendations</GlassButton>
+                      </div>
+                    ) : loadingAi ? (
+                      <div className="flex flex-col items-center gap-3 py-6">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Building your dynamic roadmap...</p>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed max-h-64 overflow-y-auto pr-2 custom-[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
+                        {aiRecommendation}
+                      </div>
+                    )}
+                  </GlassCard>
+
                   <div className="grid lg:grid-cols-2 gap-8">
                     <RoadmapSnapshot currentStage={1} />
                     <SkillGrowthChart />
@@ -379,7 +419,7 @@ const Dashboard = () => {
                         <p className="text-muted-foreground max-w-xl">
                           Continue your learning journey. You've completed {completedLessons} of {totalLessons} lessons ({progressPercent}%).
                         </p>
-                        <GlassButton 
+                        <GlassButton
                           className="px-8 py-6 text-lg group bg-primary text-black border-none hover:bg-primary/90"
                           onClick={() => navigate("/lessons")}
                         >
@@ -487,21 +527,21 @@ const Dashboard = () => {
             {activeView === "settings" && (
               <motion.div key="sett" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-3xl space-y-8">
                 <h2 className="text-3xl font-bold">Settings</h2>
-                
+
                 <section className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor size={20} className="text-primary"/> Appearance</h3>
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor size={20} className="text-primary" /> Appearance</h3>
                   <GlassCard className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">Dark Mode</p>
                         <p className="text-sm text-muted-foreground">Adjust the interface theme</p>
                       </div>
-                      <button 
+                      <button
                         onClick={() => setIsDarkMode(!isDarkMode)}
                         className={`w-14 h-7 rounded-full p-1 transition-colors ${isDarkMode ? "bg-primary" : "bg-slate-400"}`}
                       >
                         <div className={`w-5 h-5 bg-white rounded-full transition-transform ${isDarkMode ? "translate-x-7" : "translate-x-0"} flex items-center justify-center`}>
-                          {isDarkMode ? <Moon size={12} className="text-primary"/> : <Sun size={12} className="text-orange-500"/>}
+                          {isDarkMode ? <Moon size={12} className="text-primary" /> : <Sun size={12} className="text-orange-500" />}
                         </div>
                       </button>
                     </div>
@@ -509,25 +549,25 @@ const Dashboard = () => {
                 </section>
 
                 <section className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2"><Bell size={20} className="text-primary"/> Notifications</h3>
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><Bell size={20} className="text-primary" /> Notifications</h3>
                   <GlassCard className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">Push Notifications</p>
                         <p className="text-sm text-muted-foreground">Get alerts for lesson reminders</p>
                       </div>
-                      <button 
+                      <button
                         onClick={() => setNotificationsEnabled(!notificationsEnabled)}
                         className={`w-14 h-7 rounded-full p-1 transition-colors ${notificationsEnabled ? "bg-primary" : "bg-slate-300"}`}
                       >
-                         <div className={`w-5 h-5 bg-white rounded-full transition-transform ${notificationsEnabled ? "translate-x-7" : "translate-x-0"}`} />
+                        <div className={`w-5 h-5 bg-white rounded-full transition-transform ${notificationsEnabled ? "translate-x-7" : "translate-x-0"}`} />
                       </button>
                     </div>
                   </GlassCard>
                 </section>
 
                 <section className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2"><Shield size={20} className="text-primary"/> Account Security</h3>
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><Shield size={20} className="text-primary" /> Account Security</h3>
                   <GlassCard className="p-6 space-y-4">
                     <div className="flex justify-between items-center">
                       <p className="font-medium text-sm">Email: <span className="text-muted-foreground">{userEmail}</span></p>

@@ -36,10 +36,13 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
     }).populate("studentId", "name email").sort({ date: 1 }).limit(5);
 
     const completedSessions = await Session.countDocuments({ mentorId, status: "completed" });
-    const totalSessions    = await Session.countDocuments({ mentorId });
+    const totalSessions = await Session.countDocuments({ mentorId });
 
-    const courses   = await Course.find({ instructor: mentorId });
+    const courses = await Course.find({ instructor: mentorId });
     const courseIds = courses.map(c => c._id);
+
+    // Get assigned students directly from User model
+    const assignedStudentsCount = await User.countDocuments({ assignedMentor: mentorId, role: "student" });
 
     const enrollments = await Progress.find({ course: { $in: courseIds } })
       .populate("user", "name email learningProfile.experienceLevel")
@@ -55,7 +58,7 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
         });
       }
     });
-    const students  = Array.from(studentMap.values());
+    const students = Array.from(studentMap.values());
     const topStudent = [...students].sort((a, b) => b.xp - a.xp)[0] || null;
 
     const sevenDaysAgo = new Date();
@@ -66,11 +69,17 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
       { $match: { mentorId, createdAt: { $gte: sevenDaysAgo } } },
       { $group: { _id: { $dateToString: { format: "%a", date: "$createdAt" } }, val: { $sum: 1 } } }
     ]);
-    const weeklyMap  = Object.fromEntries(weeklyRaw.map(r => [r._id, r.val]));
-    const weeklyData = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ name: d, val: weeklyMap[d] || 0 }));
+    const weeklyMap = Object.fromEntries(weeklyRaw.map(r => [r._id, r.val]));
+    const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => ({ name: d, val: weeklyMap[d] || 0 }));
 
     res.json({
-      stats: { totalStudents: students.length, totalCourses: courses.length, completedSessions, totalSessions, topMentee: topStudent ? { name: topStudent.name, score: topStudent.xp } : null },
+      stats: {
+        totalStudents: Math.max(students.length, assignedStudentsCount),
+        totalCourses: courses.length,
+        completedSessions,
+        totalSessions,
+        topMentee: topStudent ? { name: topStudent.name, score: topStudent.xp } : null
+      },
       upcomingSessions,
       students: students.slice(0, 10),
       courses,
@@ -87,9 +96,9 @@ router.get("/my-courses", guard, authorize("mentor"), async (req, res) => {
     const courses = await Course.find({ instructor: req.user._id }).sort({ createdAt: -1 });
 
     const coursesWithStats = await Promise.all(courses.map(async (course) => {
-      const totalLessons   = await Lesson.countDocuments({ course: course._id });
-      const totalLevels    = await Level.countDocuments({ course: course._id });
-      const enrollments    = await Progress.countDocuments({ course: course._id });
+      const totalLessons = await Lesson.countDocuments({ course: course._id });
+      const totalLevels = await Level.countDocuments({ course: course._id });
+      const enrollments = await Progress.countDocuments({ course: course._id });
       const completedCount = await Progress.countDocuments({ course: course._id, "levelsProgress.isCompleted": true });
 
       return {
@@ -158,9 +167,9 @@ router.get("/course/:courseId/analysis", guard, authorize("mentor"), async (req,
   try {
     const { courseId } = req.params;
 
-    const totalLessons  = await Lesson.countDocuments({ course: courseId });
-    const totalLevels   = await Level.countDocuments({ course: courseId });
-    const enrollments   = await Progress.find({ course: courseId });
+    const totalLessons = await Lesson.countDocuments({ course: courseId });
+    const totalLevels = await Level.countDocuments({ course: courseId });
+    const enrollments = await Progress.find({ course: courseId });
     const totalStudents = enrollments.length;
 
     let totalCompleted = 0, totalXP = 0, scoreSum = 0, scoreCount = 0;
@@ -191,8 +200,8 @@ router.get("/course/:courseId/analysis", guard, authorize("mentor"), async (req,
       { $match: { course: require("mongoose").Types.ObjectId.createFromHexString(courseId), createdAt: { $gte: sevenDaysAgo } } },
       { $group: { _id: { $dateToString: { format: "%a", date: "$createdAt" } }, count: { $sum: 1 } } }
     ]);
-    const weeklyMap  = Object.fromEntries(weeklyRaw.map(r => [r._id, r.count]));
-    const weeklyData = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => ({ day: d, count: weeklyMap[d] || 0 }));
+    const weeklyMap = Object.fromEntries(weeklyRaw.map(r => [r._id, r.count]));
+    const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => ({ day: d, count: weeklyMap[d] || 0 }));
 
     res.json({
       success: true,
@@ -207,7 +216,7 @@ router.get("/course/:courseId/analysis", guard, authorize("mentor"), async (req,
 /* ── REVIEW QUEUE (quiz scores for mentor's courses) ─────── */
 router.get("/review-queue", guard, authorize("mentor"), async (req, res) => {
   try {
-    const courses   = await Course.find({ instructor: req.user._id });
+    const courses = await Course.find({ instructor: req.user._id });
     const courseIds = courses.map(c => c._id);
 
     const allProgress = await Progress.find({ course: { $in: courseIds } })
@@ -262,7 +271,7 @@ router.post("/lesson", guard, authorize("mentor"), async (req, res) => {
 
     const lesson = await Lesson.create({ title, description, content, videoUrl, order: order || 1, level: levelId, course: courseId, createdBy: req.user._id });
 
-    logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor created lesson "${lesson.title}"` }).catch(() => {});
+    logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor created lesson "${lesson.title}"` }).catch(() => { });
     res.status(201).json({ success: true, data: lesson });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -335,9 +344,9 @@ router.post("/lesson/:id/upload", guard, authorize("mentor"), lessonUpload.array
     }
 
     const getType = (mime) => {
-      if (mime.startsWith("image/"))  return "image";
-      if (mime.startsWith("video/"))  return "video";
-      if (mime.startsWith("audio/"))  return "audio";
+      if (mime.startsWith("image/")) return "image";
+      if (mime.startsWith("video/")) return "video";
+      if (mime.startsWith("audio/")) return "audio";
       if (mime === "application/pdf") return "pdf";
       if (mime.includes("word") || mime.includes("document")) return "doc";
       if (mime.includes("presentation") || mime.includes("powerpoint")) return "ppt";
@@ -346,11 +355,11 @@ router.post("/lesson/:id/upload", guard, authorize("mentor"), lessonUpload.array
     };
 
     const newAttachments = req.files.map(file => ({
-      name:     file.originalname,
-      url:      `/uploads/lesson-files/${file.filename}`,
-      type:     getType(file.mimetype),
+      name: file.originalname,
+      url: `/uploads/lesson-files/${file.filename}`,
+      type: getType(file.mimetype),
       mimeType: file.mimetype,
-      size:     file.size,
+      size: file.size,
     }));
 
     lesson.attachments = [...(lesson.attachments || []), ...newAttachments];
@@ -360,7 +369,7 @@ router.post("/lesson/:id/upload", guard, authorize("mentor"), lessonUpload.array
       user: req.user._id,
       type: "LESSON_CREATED",
       message: `Mentor uploaded ${req.files.length} file(s) to lesson "${lesson.title}"`
-    }).catch(() => {});
+    }).catch(() => { });
 
     res.json({ success: true, attachments: lesson.attachments });
   } catch (err) {
@@ -379,7 +388,7 @@ router.delete("/lesson/:id/attachment", guard, authorize("mentor"), async (req, 
     await lesson.save();
 
     // Delete physical file
-    const fs   = require("fs");
+    const fs = require("fs");
     const path = require("path");
     const filePath = path.join(__dirname, "..", url);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -420,7 +429,7 @@ router.post("/projects", guard, authorize("mentor"), async (req, res) => {
       course: courseId || undefined
     });
 
-    logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor assigned project "${title}"` }).catch(() => {});
+    logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor assigned project "${title}"` }).catch(() => { });
 
     // Notify each assigned student
     const { createNotification } = require("./notificationController");
@@ -502,9 +511,9 @@ router.put("/projects/:id/grade/:studentId", guard, authorize("mentor"), async (
     const sub = project.submissions.find(s => s.student.toString() === req.params.studentId);
     if (!sub) return res.status(404).json({ message: "Submission not found" });
 
-    if (grade)    sub.grade    = grade;
+    if (grade) sub.grade = grade;
     if (feedback) sub.feedback = feedback;
-    if (status)   sub.status   = status;
+    if (status) sub.status = status;
     await project.save();
 
     // Notify student about grading
@@ -530,12 +539,12 @@ router.put("/profile", guard, authorize("mentor"), async (req, res) => {
     const { name, skillTrack, experienceLevel, commitmentTime, learningStyle, learningGoal, bio } = req.body;
     const updates = {};
     if (name) updates.name = name;
-    if (skillTrack)      updates["learningProfile.skillTrack"]      = skillTrack;
+    if (skillTrack) updates["learningProfile.skillTrack"] = skillTrack;
     if (experienceLevel) updates["learningProfile.experienceLevel"] = experienceLevel;
-    if (commitmentTime)  updates["learningProfile.commitmentTime"]  = commitmentTime;
-    if (learningStyle)   updates["learningProfile.learningStyle"]   = learningStyle;
-    if (learningGoal)    updates["learningProfile.learningGoal"]    = learningGoal;
-    if (bio)             updates["learningProfile.personalGoal"]    = bio;
+    if (commitmentTime) updates["learningProfile.commitmentTime"] = commitmentTime;
+    if (learningStyle) updates["learningProfile.learningStyle"] = learningStyle;
+    if (learningGoal) updates["learningProfile.learningGoal"] = learningGoal;
+    if (bio) updates["learningProfile.personalGoal"] = bio;
 
     const updated = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select("-password");
     res.json({ success: true, user: updated });

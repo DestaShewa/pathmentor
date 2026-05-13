@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import {
   Search, UserPlus, MoreHorizontal, Filter,
-  Edit3, Trash2, RefreshCw, Eye, EyeOff, X
+  Edit3, Trash2, RefreshCw, Eye, EyeOff, X, UserCheck
 } from "lucide-react";
 import api from "../../../services/api";
+import { toast } from "sonner";
 
 const AllStudents = () => {
   const [students, setStudents] = useState<any[]>([]);
@@ -35,6 +36,9 @@ const AllStudents = () => {
   // Dropdown data
   const [courses, setCourses] = useState<any[]>([]);
   const [levels, setLevels] = useState<any[]>([]);
+  const [mentors, setMentors] = useState<any[]>([]);
+  const [isMentorModalOpen, setIsMentorModalOpen] = useState(false);
+  const [assigningMentor, setAssigningMentor] = useState(false);
 
   // 3-dot menu
   const [isActionOpen, setIsActionOpen] = useState<string | null>(null);
@@ -184,6 +188,42 @@ const AllStudents = () => {
     }
   };
 
+  const fetchMentorsList = async () => {
+    try {
+      const res = await api.get("/admin/mentors");
+      setMentors(res.data.data || res.data || []);
+    } catch (err) {
+      console.error("Failed to fetch mentors:", err);
+      toast.error("Failed to load mentors list");
+    }
+  };
+
+  const openMentorAssignment = (student: any) => {
+    setSelectedStudentId(student._id);
+    setStudentName(student.name);
+    fetchMentorsList();
+    setIsMentorModalOpen(true);
+    setIsActionOpen(null);
+  };
+
+  const handleAssignMentor = async (mentorId: string) => {
+    if (!selectedStudentId) return;
+    setAssigningMentor(true);
+    try {
+      await api.put("/admin/assign-mentor", {
+        studentId: selectedStudentId,
+        mentorId: mentorId,
+      });
+      toast.success(`Mentor assigned to ${studentName}`);
+      fetchStudents();
+      setIsMentorModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to assign mentor");
+    } finally {
+      setAssigningMentor(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -292,11 +332,10 @@ const AllStudents = () => {
                       {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-5 py-4">
-                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                        student.onboardingCompleted
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : "bg-slate-500/10 text-slate-400"
-                      }`}>
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${student.onboardingCompleted
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : "bg-slate-500/10 text-slate-400"
+                        }`}>
                         {student.onboardingCompleted ? "Active" : "Inactive"}
                       </span>
                     </td>
@@ -317,6 +356,10 @@ const AllStudents = () => {
                             <button onClick={() => handleToggleStatus(student)}
                               className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
                               <RefreshCw size={14} /> {student.onboardingCompleted ? "Set Inactive" : "Set Active"}
+                            </button>
+                            <button onClick={() => openMentorAssignment(student)}
+                              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
+                              <UserCheck size={14} /> Change Mentor
                             </button>
                             <div className="border-t border-white/5" />
                             <button onClick={() => handleDelete(student._id)}
@@ -351,9 +394,8 @@ const AllStudents = () => {
             </div>
 
             {(formError || formSuccess) && (
-              <div className={`rounded-2xl border p-4 mb-5 text-sm ${
-                formError ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-              }`}>
+              <div className={`rounded-2xl border p-4 mb-5 text-sm ${formError ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                }`}>
                 {formError || formSuccess}
               </div>
             )}
@@ -438,6 +480,59 @@ const AllStudents = () => {
               <button onClick={handleSubmit} disabled={formLoading}
                 className="rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-60">
                 {formLoading ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save Changes" : "Create Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MENTOR ASSIGNMENT MODAL ── */}
+      {isMentorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-white">Assign Mentor</h2>
+                <p className="text-slate-400 text-sm">Select a mentor for {studentName}</p>
+              </div>
+              <button onClick={() => setIsMentorModalOpen(false)}
+                className="p-2 rounded-xl bg-white/5 text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+              {mentors.length === 0 ? (
+                <p className="text-center py-8 text-slate-500">No mentors available</p>
+              ) : (
+                mentors.map((mentor) => (
+                  <button
+                    key={mentor._id}
+                    onClick={() => handleAssignMentor(mentor._id)}
+                    disabled={assigningMentor}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-500/50 hover:bg-white/10 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                        {mentor.name[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{mentor.name}</p>
+                        <p className="text-xs text-slate-500">{mentor.learningProfile?.skillTrack || "—"}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">{mentor.studentCount || 0} students</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setIsMentorModalOpen(false)}
+                className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-white/10">
+                Cancel
               </button>
             </div>
           </div>

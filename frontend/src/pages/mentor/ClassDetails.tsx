@@ -9,7 +9,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import {
   ArrowLeft, BookOpen, Users, ChevronDown, ChevronUp,
-  Play, CheckCircle2, Zap, Clock, BarChart3, Upload, Plus
+  Play, CheckCircle2, Zap, Clock, BarChart3, Upload, Plus, Edit2, Trash2, X
 } from "lucide-react";
 
 interface Level {
@@ -32,17 +32,19 @@ interface Student {
 const ClassDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [user, setUser]         = useState<any>(null);
-  const [course, setCourse]     = useState<any>(null);
-  const [levels, setLevels]     = useState<Level[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [course, setCourse] = useState<any>(null);
+  const [levels, setLevels] = useState<Level[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [totalLessons, setTotalLessons] = useState(0);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [expandedLevel, setExpandedLevel] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"curriculum" | "students">("curriculum");
-  const [sidebarOpen, setSidebarOpen]           = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -68,6 +70,31 @@ const ClassDetails = () => {
     } catch (e: any) {
       setError(e?.response?.data?.message || "Failed to load course");
     } finally { setLoading(false); }
+  };
+
+  const handleUpdateLesson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLesson) return;
+    try {
+      await api.put(`/mentor/lesson/${editingLesson._id}`, editingLesson);
+      setEditingLesson(null);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to update lesson");
+    }
+  };
+
+  const handleDeleteLesson = async (lessonId: string) => {
+    if (!confirm("Are you sure you want to delete this lesson?")) return;
+    setIsDeleting(lessonId);
+    try {
+      await api.delete(`/mentor/lesson/${lessonId}`);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to delete lesson");
+    } finally {
+      setIsDeleting(null);
+    }
   };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
@@ -112,9 +139,9 @@ const ClassDetails = () => {
               {/* Quick stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                 {[
-                  { icon: Users,    label: "Students",  value: students.length,  color: "text-blue-400" },
-                  { icon: BookOpen, label: "Lessons",   value: totalLessons,     color: "text-purple-400" },
-                  { icon: Zap,      label: "Levels",    value: levels.length,    color: "text-yellow-400" },
+                  { icon: Users, label: "Students", value: students.length, color: "text-blue-400" },
+                  { icon: BookOpen, label: "Lessons", value: totalLessons, color: "text-purple-400" },
+                  { icon: Zap, label: "Levels", value: levels.length, color: "text-yellow-400" },
                   { icon: CheckCircle2, label: "Avg Progress", value: students.length > 0 ? `${Math.round(students.reduce((s, st) => s + st.progressPercent, 0) / students.length)}%` : "0%", color: "text-emerald-400" },
                 ].map((s, i) => (
                   <GlassCard key={i} className="p-4 text-center">
@@ -188,7 +215,22 @@ const ClassDetails = () => {
                                           <p className="text-sm font-medium truncate">{lesson.title}</p>
                                           {lesson.description && <p className="text-xs text-muted-foreground truncate">{lesson.description}</p>}
                                         </div>
-                                        {lesson.videoUrl && <span className="text-xs text-blue-400 shrink-0">Video</span>}
+                                        <div className="flex items-center gap-2">
+                                          {lesson.videoUrl && <span className="text-xs text-blue-400 shrink-0">Video</span>}
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setEditingLesson(lesson); }}
+                                            className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-primary transition-colors"
+                                          >
+                                            <Edit2 size={12} />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteLesson(lesson._id); }}
+                                            disabled={isDeleting === lesson._id}
+                                            className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
@@ -262,6 +304,58 @@ const ClassDetails = () => {
           </>
         )}
       </main>
+
+      {/* Edit Modal */}
+      {editingLesson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-xl bg-slate-900 border border-white/10 rounded-3xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Edit Lesson</h2>
+              <button onClick={() => setEditingLesson(null)} className="text-slate-400 hover:text-white"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleUpdateLesson} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Title</label>
+                <input
+                  value={editingLesson.title}
+                  onChange={e => setEditingLesson({ ...editingLesson, title: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Description</label>
+                <input
+                  value={editingLesson.description || ""}
+                  onChange={e => setEditingLesson({ ...editingLesson, description: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Content</label>
+                <textarea
+                  value={editingLesson.content || ""}
+                  onChange={e => setEditingLesson({ ...editingLesson, content: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary min-h-[120px]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Video URL</label>
+                <input
+                  value={editingLesson.videoUrl || ""}
+                  onChange={e => setEditingLesson({ ...editingLesson, videoUrl: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none focus:border-primary"
+                  placeholder="https://youtube.com/embed/..."
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <GlassButton variant="primary" type="submit" className="flex-1">Save Changes</GlassButton>
+                <GlassButton variant="secondary" onClick={() => setEditingLesson(null)} type="button">Cancel</GlassButton>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

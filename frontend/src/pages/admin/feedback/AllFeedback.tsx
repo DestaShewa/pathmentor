@@ -148,10 +148,10 @@ const AllFeedback = () => {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Reviews",  value: reviews.length,  color: "text-white",         bg: "bg-white/5" },
-          { label: "Avg Rating",     value: `${avgRating}★`, color: "text-amber-400",     bg: "bg-amber-500/10" },
-          { label: "5-Star Reviews", value: fiveStars,       color: "text-emerald-400",   bg: "bg-emerald-500/10" },
-          { label: "Low Ratings",    value: lowRatings,      color: "text-red-400",       bg: "bg-red-500/10" },
+          { label: "Total Reviews", value: reviews.length, color: "text-white", bg: "bg-white/5" },
+          { label: "Avg Rating", value: `${avgRating}★`, color: "text-amber-400", bg: "bg-amber-500/10" },
+          { label: "5-Star Reviews", value: fiveStars, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Low Ratings", value: lowRatings, color: "text-red-400", bg: "bg-red-500/10" },
         ].map((s, i) => (
           <div key={i} className={`${s.bg} border border-white/10 rounded-2xl p-4 text-center`}>
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -288,13 +288,12 @@ const AllFeedback = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        review.studentRating >= 4
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : review.studentRating === 3
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${review.studentRating >= 4
+                        ? "bg-emerald-500/10 text-emerald-400"
+                        : review.studentRating === 3
                           ? "bg-yellow-500/10 text-yellow-400"
                           : "bg-red-500/10 text-red-400"
-                      }`}>
+                        }`}>
                         {review.studentRating >= 4 ? "Positive" : review.studentRating === 3 ? "Neutral" : "Negative"}
                       </span>
                       <button

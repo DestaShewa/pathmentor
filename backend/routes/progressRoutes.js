@@ -22,6 +22,7 @@ router.get("/achievements", guard, getUserAchievements);
 router.get("/streak", guard, getUserStreak);
 router.get("/motivation", guard, getDailyMotivation);
 router.get("/weekly-report", guard, getWeeklyReport);
+router.get("/weekly", guard, getWeeklyReport);
 router.get("/reminder", guard, getSmartReminder);
 
 module.exports = router;

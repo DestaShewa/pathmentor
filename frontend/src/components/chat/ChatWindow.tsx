@@ -1,15 +1,16 @@
 import { useMessages } from "@/hooks/useMessages";
 import { MessageInput } from "./MessageInput";
 import { MessageList } from "./MessageList";
-import { Loader2, MessageSquare, Circle } from "lucide-react";
+import { Loader2, MessageSquare, Circle, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface ChatWindowProps {
   conversation: any;
   currentUserId: string;
+  onDeleteConversation?: () => void;
 }
 
-export const ChatWindow = ({ conversation, currentUserId }: ChatWindowProps) => {
+export const ChatWindow = ({ conversation, currentUserId, onDeleteConversation }: ChatWindowProps) => {
   const { messages, loading, typing, sendMessage, handleTyping, messagesEndRef } = useMessages(
     conversation?._id
   );
@@ -54,7 +55,7 @@ export const ChatWindow = ({ conversation, currentUserId }: ChatWindowProps) => 
       >
         <div className="relative shrink-0">
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-lg font-bold text-black">
-            {conversation.participant?.name[0]?.toUpperCase() || "?"}
+            {conversation.participant?.name?.[0]?.toUpperCase() || "?"}
           </div>
           {conversation.participant?.isOnline && (
             <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
@@ -77,6 +78,22 @@ export const ChatWindow = ({ conversation, currentUserId }: ChatWindowProps) => 
             )}
           </div>
         </div>
+
+        {onDeleteConversation && (
+          <button
+            onClick={() => {
+              if (window.confirm("Are you sure you want to delete this entire conversation? This cannot be undone.")) {
+                onDeleteConversation();
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all shrink-0 z-50 border border-red-500/50"
+            style={{ color: 'white' }}
+            title="Delete Conversation"
+          >
+            <Trash2 size={18} />
+            <span>Delete Chat</span>
+          </button>
+        )}
       </motion.div>
 
       {/* Messages */}

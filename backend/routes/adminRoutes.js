@@ -4,16 +4,16 @@ const router = express.Router();
 const { guard, authorize } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 
-const userCtrl        = require("../controllers/userController");
-const courseCtrl      = require("../controllers/courseController");
-const lessonCtrl      = require("../controllers/lessonController");
-const quizCtrl        = require("../controllers/quizController");
-const progressCtrl    = require("../controllers/progressController");
+const userCtrl = require("../controllers/userController");
+const courseCtrl = require("../controllers/courseController");
+const lessonCtrl = require("../controllers/lessonController");
+const quizCtrl = require("../controllers/quizController");
+const progressCtrl = require("../controllers/progressController");
 const leaderboardCtrl = require("../controllers/leaderboardController");
 const announcementCtrl = require("../controllers/announcementController");
-const activityCtrl    = require("../controllers/admin/activityController");
-const dashboardCtrl   = require("../controllers/admin/dashboardController");
-const studentCtrl     = require("../controllers/studentController");
+const activityCtrl = require("../controllers/admin/activityController");
+const dashboardCtrl = require("../controllers/admin/dashboardController");
+const studentCtrl = require("../controllers/studentController");
 
 // All routes below require admin auth
 router.use(guard, authorize("admin"));
@@ -22,50 +22,50 @@ router.use(guard, authorize("admin"));
 router.get("/dashboard", dashboardCtrl.getDashboardStats);
 
 /* ── USERS ──────────────────────────────────────────────── */
-router.get("/users",           userCtrl.getAllUsers);
-router.delete("/user/:id",     userCtrl.deleteUser);
-router.put("/user/:id/role",   userCtrl.updateUserRole);
+router.get("/users", userCtrl.getAllUsers);
+router.delete("/user/:id", userCtrl.deleteUser);
+router.put("/user/:id/role", userCtrl.updateUserRole);
 
 /* ── MENTORS ────────────────────────────────────────────── */
-router.get("/mentors",                userCtrl.getAllMentors);
-router.get("/pending-mentors",        userCtrl.getPendingMentors);
-router.post("/mentor",                userCtrl.createMentor);
-router.put("/mentor/:id/approve",     userCtrl.approveMentor);
-router.put("/mentor/:id/reject",      userCtrl.rejectMentor);
-router.get("/search-mentors",         userCtrl.searchMentors);
+router.get("/mentors", userCtrl.getAllMentors);
+router.get("/pending-mentors", userCtrl.getPendingMentors);
+router.post("/mentor", userCtrl.createMentor);
+router.put("/mentor/:id/approve", userCtrl.approveMentor);
+router.put("/mentor/:id/reject", userCtrl.rejectMentor);
+router.get("/search-mentors", userCtrl.searchMentors);
 
 /* ── COURSES ────────────────────────────────────────────── */
-router.get("/courses",         courseCtrl.adminGetCourses);
-router.post("/courses",        courseCtrl.createCourse);
-router.delete("/course/:id",   courseCtrl.adminDeleteCourse);
-router.put("/course/:id",      courseCtrl.adminUpdateCourse);
+router.get("/courses", courseCtrl.adminGetCourses);
+router.post("/courses", courseCtrl.createCourse);
+router.delete("/course/:id", courseCtrl.adminDeleteCourse);
+router.put("/course/:id", courseCtrl.adminUpdateCourse);
 
 /* ── LESSONS ────────────────────────────────────────────── */
-router.get("/lessons",         lessonCtrl.adminGetLessons);
-router.delete("/lesson/:id",   lessonCtrl.adminDeleteLesson);
+router.get("/lessons", lessonCtrl.adminGetLessons);
+router.delete("/lesson/:id", lessonCtrl.adminDeleteLesson);
 
 /* ── QUIZZES ────────────────────────────────────────────── */
-router.get("/quizzes",         quizCtrl.adminGetQuizzes);
-router.delete("/quiz/:id",     quizCtrl.adminDeleteQuiz);
+router.get("/quizzes", quizCtrl.adminGetQuizzes);
+router.delete("/quiz/:id", quizCtrl.adminDeleteQuiz);
 
 /* ── LEADERBOARD ────────────────────────────────────────── */
-router.get("/leaderboard",     leaderboardCtrl.getLeaderboard);
+router.get("/leaderboard", leaderboardCtrl.getLeaderboard);
 
 /* ── ANNOUNCEMENTS ──────────────────────────────────────── */
-router.post("/announcement",          announcementCtrl.createAnnouncement);
-router.delete("/announcement/:id",    announcementCtrl.deleteAnnouncement);
-router.get("/announcements",          announcementCtrl.getAnnouncements);
+router.post("/announcement", announcementCtrl.createAnnouncement);
+router.delete("/announcement/:id", announcementCtrl.deleteAnnouncement);
+router.get("/announcements", announcementCtrl.getAnnouncements);
 
 /* ── ACTIVITIES ─────────────────────────────────────────── */
-router.get("/activities",      activityCtrl.getRecentActivities);
-router.get("/activities/all",  activityCtrl.getAllActivities);
+router.get("/activities", activityCtrl.getRecentActivities);
+router.get("/activities/all", activityCtrl.getAllActivities);
 
 /* ── STUDENTS ───────────────────────────────────────────── */
-router.get("/students",              studentCtrl.getStudents);
-router.post("/students",             studentCtrl.createStudent);
-router.get("/students/:id",          studentCtrl.getStudentById);
-router.put("/students/:id",          studentCtrl.updateStudent);
-router.delete("/students/:id",       studentCtrl.deleteStudent);
+router.get("/students", studentCtrl.getStudents);
+router.post("/students", studentCtrl.createStudent);
+router.get("/students/:id", studentCtrl.getStudentById);
+router.put("/students/:id", studentCtrl.updateStudent);
+router.delete("/students/:id", studentCtrl.deleteStudent);
 router.patch("/students/:id/status", studentCtrl.updateStatus);
 
 /* ── ANALYTICS ──────────────────────────────────────────── */
@@ -75,10 +75,10 @@ router.get("/analytics", progressCtrl.getPlatformAnalytics);
 router.get("/students-progress", async (req, res) => {
   try {
     const Progress = require("../models/Progress");
-    const Lesson   = require("../models/Lesson");
+    const Lesson = require("../models/Lesson");
 
     const allProgress = await Progress.find()
-      .populate("user",   "name email learningProfile")
+      .populate("user", "name email learningProfile")
       .populate("course", "title")
       .sort({ updatedAt: -1 });
 
@@ -112,10 +112,10 @@ router.get("/students-progress", async (req, res) => {
 router.get("/grades", async (req, res) => {
   try {
     const Progress = require("../models/Progress");
-    const Level    = require("../models/Level");
+    const Level = require("../models/Level");
 
     const allProgress = await Progress.find()
-      .populate("user",   "name email")
+      .populate("user", "name email")
       .populate("course", "title")
       .sort({ updatedAt: -1 });
 
@@ -152,7 +152,7 @@ router.get("/session-reviews", async (req, res) => {
       studentRating: { $gt: 0 }
     })
       .populate("studentId", "name email")
-      .populate("mentorId",  "name email learningProfile")
+      .populate("mentorId", "name email learningProfile")
       .sort({ updatedAt: -1 });
 
     res.json({ success: true, data: sessions });
@@ -166,16 +166,16 @@ router.delete("/session-reviews/:id", async (req, res) => {
   try {
     const Session = require("../models/Session");
     const session = await Session.findById(req.params.id);
-    
+
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
     }
-    
-    // Clear the rating and comment
-    session.studentRating = 0;
-    session.studentComment = undefined;
-    await session.save();
-    
+
+    // Clear the rating and comment - bypass validators to avoid min:1 issues
+    await Session.findByIdAndUpdate(req.params.id, {
+      $set: { studentRating: null, studentComment: "" }
+    }, { runValidators: false });
+
     res.json({ success: true, message: "Review deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -226,7 +226,7 @@ router.put("/categories/rename", async (req, res) => {
 router.get("/ratings-overview", async (req, res) => {
   try {
     const Session = require("../models/Session");
-    const Course  = require("../models/Course");
+    const Course = require("../models/Course");
 
     // All rated sessions
     const ratedSessions = await Session.find({ studentRating: { $gt: 0 } })
@@ -272,10 +272,10 @@ router.get("/ratings-overview", async (req, res) => {
 /* ── PLATFORM STATS (for system settings) ───────────────── */
 router.get("/platform-stats", async (req, res) => {
   try {
-    const Course   = require("../models/Course");
-    const Lesson   = require("../models/Lesson");
+    const Course = require("../models/Course");
+    const Lesson = require("../models/Lesson");
     const Progress = require("../models/Progress");
-    const Session  = require("../models/Session");
+    const Session = require("../models/Session");
     const Activity = require("../models/Activity");
 
     const [
@@ -377,10 +377,10 @@ router.put("/assign-mentor", async (req, res) => {
     const { MAX_STUDENTS_PER_MENTOR, unassignMentor } = require("../utils/assignMentor");
 
     const student = await User.findById(studentId);
-    const mentor  = await User.findById(mentorId);
+    const mentor = await User.findById(mentorId);
 
     if (!student || student.role !== "student") return res.status(404).json({ message: "Student not found" });
-    if (!mentor  || mentor.role  !== "mentor")  return res.status(404).json({ message: "Mentor not found" });
+    if (!mentor || mentor.role !== "mentor") return res.status(404).json({ message: "Mentor not found" });
 
     const mentorStudentCount = await User.countDocuments({ assignedMentor: mentorId });
     if (mentorStudentCount >= MAX_STUDENTS_PER_MENTOR) {
@@ -429,16 +429,16 @@ router.post("/auto-assign-mentors", async (req, res) => {
 /* ── STUDENT REPORTS (aggregated analytics) ─────────────── */
 router.get("/reports", async (req, res) => {
   try {
-    const Progress    = require("../models/Progress");
-    const Course      = require("../models/Course");
-    const Lesson      = require("../models/Lesson");
+    const Progress = require("../models/Progress");
+    const Course = require("../models/Course");
+    const Lesson = require("../models/Lesson");
     const Achievement = require("../models/Achievement");
 
     // Core counts
-    const totalStudents    = await User.countDocuments({ role: "student" });
-    const activeStudents   = await User.countDocuments({ role: "student", onboardingCompleted: true });
-    const totalCourses     = await Course.countDocuments();
-    const totalLessons     = await Lesson.countDocuments();
+    const totalStudents = await User.countDocuments({ role: "student" });
+    const activeStudents = await User.countDocuments({ role: "student", onboardingCompleted: true });
+    const totalCourses = await Course.countDocuments();
+    const totalLessons = await Lesson.countDocuments();
     const totalAchievements = await Achievement.countDocuments();
 
     // Progress aggregation

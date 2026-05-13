@@ -7,7 +7,8 @@ import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { Trophy, Zap, Medal, Crown } from "lucide-react";
+import { Trophy, Zap, Medal, Crown, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
   rank: number;
@@ -30,18 +31,41 @@ const Leaderboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [courses, setCourses] = useState<{ _id: string, title: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCourseId, setSelectedCourseId] = useState("All");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/auth"); return; }
     fetchData();
+    fetchFilterData();
   }, [navigate]);
 
-  const fetchData = async () => {
+  const fetchFilterData = async () => {
     try {
+      const res = await api.get("/courses/categories");
+      if (res.data.success) {
+        setCategories(res.data.data.map((c: any) => c.name));
+        setCourses(res.data.courses || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch filter data:", err);
+    }
+  };
+
+  const fetchData = async (cat?: string, courseId?: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (cat && cat !== "All") params.append("category", cat);
+      if (courseId && courseId !== "All") params.append("courseId", courseId);
+
+      const queryStr = params.toString() ? `?${params.toString()}` : "";
+
       const [profileRes, lbRes, xpRes] = await Promise.all([
         api.get("/users/profile"),
-        api.get("/leaderboard"),
+        api.get(`/leaderboard${queryStr}`),
         api.get("/progress/xp")
       ]);
       setUser(profileRes.data.user);
@@ -50,6 +74,20 @@ const Leaderboard = () => {
       setYourXP(xpRes.data.totalXP || 0);
     } catch { navigate("/auth"); }
     finally { setLoading(false); }
+  };
+
+  const handleCategoryChange = (cat: string) => {
+    setSelectedCategory(cat);
+    setSelectedCourseId("All"); // Reset course when category changes
+    setLoading(true);
+    fetchData(cat, "All");
+  };
+
+  const handleCourseChange = (id: string) => {
+    setSelectedCourseId(id);
+    setSelectedCategory("All"); // Reset category when specific course chosen
+    setLoading(true);
+    fetchData("All", id);
   };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
@@ -73,6 +111,54 @@ const Leaderboard = () => {
             </div>
             <p className="text-muted-foreground">Top learners ranked by XP earned</p>
           </motion.div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <button
+                onClick={() => handleCategoryChange("All")}
+                className={cn(
+                  "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
+                  selectedCategory === "All" && selectedCourseId === "All"
+                    ? "bg-primary text-black"
+                    : "bg-white/5 text-muted-foreground hover:bg-white/10"
+                )}
+              >
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => handleCategoryChange(cat)}
+                  className={cn(
+                    "px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap",
+                    selectedCategory === cat
+                      ? "bg-primary text-black"
+                      : "bg-white/5 text-muted-foreground hover:bg-white/10"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Course Dropdown */}
+            <div className="relative min-w-[200px]">
+              <select
+                value={selectedCourseId}
+                onChange={(e) => handleCourseChange(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-primary/50 appearance-none cursor-pointer"
+              >
+                <option value="All" className="bg-background text-white">Filter by Course</option>
+                {courses.map((course) => (
+                  <option key={course._id} value={course._id} className="bg-background text-white font-medium">
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
 
           <GlassCard className="p-6 border-primary/30">
             <div className="flex items-center justify-between">

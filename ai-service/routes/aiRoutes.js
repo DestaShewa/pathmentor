@@ -13,5 +13,6 @@ router.post('/skill-gap', aiController.skillGap);
 router.post('/similarity', aiController.similarity);
 router.post('/ai-detector', aiController.aiDetector);
 router.post('/quiz', aiController.generateQuiz);
+router.get('/health', aiController.healthCheck);
 
 module.exports = router;

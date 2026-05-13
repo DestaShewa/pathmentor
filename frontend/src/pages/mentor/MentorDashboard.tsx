@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
-import { initSocket } from "@/services/socket";
+import { initSocket, disconnectSocket } from "@/services/socket";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
 import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -45,10 +45,10 @@ const MentorDashboard = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/auth"); return; }
-    
+
     // Initialize socket for real-time notifications
     initSocket();
-    
+
     fetchAll();
   }, [navigate]);
 
@@ -125,6 +125,7 @@ const MentorDashboard = () => {
 
   const handleSignOut = () => {
     localStorage.removeItem("token");
+    disconnectSocket();
     navigate("/auth");
   };
 

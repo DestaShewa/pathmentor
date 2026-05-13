@@ -1,18 +1,19 @@
 import { useState, useRef, KeyboardEvent } from "react";
-import { Send, Paperclip, X, File, Image, Mic, StopCircle } from "lucide-react";
+import { Send, Paperclip, X, File as FileIcon, Image, Mic, StopCircle } from "lucide-react";
 import { GlassButton } from "@/components/ui/GlassButton";
 
 interface MessageInputProps {
   onSend: (message: string, attachments?: File[]) => void;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
-export const MessageInput = ({ onSend, disabled }: MessageInputProps) => {
+export const MessageInput = ({ onSend, onTyping, disabled }: MessageInputProps) => {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -51,7 +52,7 @@ export const MessageInput = ({ onSend, disabled }: MessageInputProps) => {
 
   const getFileIcon = (file: File) => {
     if (file.type.startsWith("image/")) return <Image size={14} className="text-blue-400" />;
-    return <File size={14} className="text-slate-400" />;
+    return <FileIcon size={14} className="text-slate-400" />;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -77,10 +78,10 @@ export const MessageInput = ({ onSend, disabled }: MessageInputProps) => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
         setAttachments(prev => [...prev, audioFile]);
-        
+
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
-        
+
         // Reset recording state
         setIsRecording(false);
         setRecordingTime(0);
@@ -180,11 +181,10 @@ export const MessageInput = ({ onSend, disabled }: MessageInputProps) => {
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={disabled}
-            className={`p-2.5 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              isRecording
+            className={`p-2.5 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording
                 ? "bg-red-500/20 border-red-500/30 text-red-400"
                 : "bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
-            }`}
+              }`}
             title={isRecording ? "Stop recording" : "Record voice message"}
           >
             <Mic size={18} />
@@ -194,7 +194,10 @@ export const MessageInput = ({ onSend, disabled }: MessageInputProps) => {
           <input
             type="text"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              if (onTyping) onTyping();
+            }}
             onKeyPress={handleKeyPress}
             placeholder="Type a message..."
             disabled={disabled || isRecording}

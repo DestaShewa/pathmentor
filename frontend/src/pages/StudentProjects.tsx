@@ -13,8 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import {
   FolderKanban, Calendar, User, CheckCircle2,
   Clock, AlertCircle, Send, X, ExternalLink,
-  ChevronDown, ChevronUp, RefreshCw, Star
+  ChevronDown, ChevronUp, RefreshCw, Star, Sparkles, Loader2
 } from "lucide-react";
+import aiService from "@/services/aiService";
 
 interface Project {
   _id: string;
@@ -38,26 +39,28 @@ interface Project {
 }
 
 const statusColors = {
-  submitted:       "bg-blue-500/20 text-blue-300",
-  reviewed:        "bg-green-500/20 text-green-300",
+  submitted: "bg-blue-500/20 text-blue-300",
+  reviewed: "bg-green-500/20 text-green-300",
   revision_needed: "bg-amber-500/20 text-amber-300",
 };
 
 const StudentProjects = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser]           = useState<any>(null);
-  const [projects, setProjects]   = useState<Project[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [sidebarOpen, setSidebarOpen]           = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [expanded, setExpanded]   = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   // Submit form
   const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const [submitDesc, setSubmitDesc]     = useState("");
-  const [submitLink, setSubmitLink]     = useState("");
-  const [submitting, setSubmitting]     = useState(false);
+  const [submitDesc, setSubmitDesc] = useState("");
+  const [submitLink, setSubmitLink] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [aiCheckResult, setAiCheckResult] = useState<{ similarity: number, reason: string } | null>(null);
+  const [checkingAi, setCheckingAi] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -90,11 +93,27 @@ const StudentProjects = () => {
         link: submitLink.trim() || undefined
       });
       toast({ title: "Project submitted!", description: "Your mentor will review it soon." });
-      setSubmittingId(null); setSubmitDesc(""); setSubmitLink("");
+      setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); setAiCheckResult(null);
       fetchData();
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setSubmitting(false); }
+  };
+
+  const handleAiCheck = async () => {
+    if (!submitDesc.trim()) {
+      toast({ title: "Error", description: "Write a description to check", variant: "destructive" });
+      return;
+    }
+    setCheckingAi(true);
+    try {
+      const res = await aiService.aiDetector(submitDesc);
+      setAiCheckResult(res);
+    } catch (e) {
+      toast({ title: "Error", description: "AI detector unavailable", variant: "destructive" });
+    } finally {
+      setCheckingAi(false);
+    }
   };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
@@ -157,9 +176,9 @@ const StudentProjects = () => {
             <div className="space-y-4">
               {projects.map((project, idx) => {
                 const mySubmission = project.submissions.find(s => s.student === userId);
-                const isExpanded   = expanded === project._id;
+                const isExpanded = expanded === project._id;
                 const isSubmitting = submittingId === project._id;
-                const overdue      = project.dueDate && new Date(project.dueDate) < new Date() && !mySubmission;
+                const overdue = project.dueDate && new Date(project.dueDate) < new Date() && !mySubmission;
 
                 return (
                   <motion.div key={project._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.06 }}>
@@ -265,6 +284,28 @@ const StudentProjects = () => {
                                         placeholder="Describe what you built, what you learned, any challenges..."
                                         className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary resize-none text-sm"
                                       />
+
+                                      {/* AI Pre-submission check feature */}
+                                      <div className="flex flex-col gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-bold text-primary flex items-center gap-1"><Sparkles size={12} /> AI Authenticity Check</span>
+                                          <GlassButton variant="secondary" size="sm" onClick={handleAiCheck} disabled={checkingAi || !submitDesc.trim()}>
+                                            {checkingAi ? <Loader2 size={12} className="animate-spin" /> : "Check My Writing"}
+                                          </GlassButton>
+                                        </div>
+                                        {aiCheckResult && (
+                                          <div className="mt-2 text-xs">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <div className="flex-1 bg-white/10 rounded-full h-1.5 overflow-hidden">
+                                                <div className={`h-full transition-all duration-500 ${aiCheckResult.similarity > 50 ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${aiCheckResult.similarity}%` }}></div>
+                                              </div>
+                                              <span className={aiCheckResult.similarity > 50 ? 'text-red-400 font-bold' : 'text-green-400 font-bold'}>{aiCheckResult.similarity}% AI</span>
+                                            </div>
+                                            <p className="text-muted-foreground italic">"{aiCheckResult.reason}"</p>
+                                          </div>
+                                        )}
+                                      </div>
+
                                       <input
                                         value={submitLink}
                                         onChange={e => setSubmitLink(e.target.value)}
@@ -275,7 +316,7 @@ const StudentProjects = () => {
                                         <GlassButton variant="primary" onClick={() => handleSubmit(project._id)} disabled={submitting} className="flex-1">
                                           <Send size={15} /> {submitting ? "Submitting..." : "Submit Project"}
                                         </GlassButton>
-                                        <GlassButton variant="secondary" onClick={() => { setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); }}>
+                                        <GlassButton variant="secondary" onClick={() => { setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); setAiCheckResult(null); }}>
                                           <X size={15} />
                                         </GlassButton>
                                       </div>

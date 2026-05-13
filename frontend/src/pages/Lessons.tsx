@@ -12,8 +12,9 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import {
   BookOpen, Play, CheckCircle2, Lock,
   ChevronDown, ChevronUp, Trophy, ArrowLeft,
-  FileText, Image, Video, Music, File, ExternalLink
+  FileText, Image, Video, Music, File, ExternalLink, Sparkles, Loader2
 } from "lucide-react";
+import aiService from "@/services/aiService";
 
 import { handleSidebarNav } from "@/lib/navHelper";
 
@@ -63,10 +64,14 @@ const Lessons = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState(0);
   const [quizResult, setQuizResult] = useState<{ levelCompleted: boolean; message: string } | null>(null);
+  const [isPracticeQuiz, setIsPracticeQuiz] = useState(false);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [courseTitle, setCourseTitle] = useState("My Course");
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   // Track time spent on current lesson
   const [lessonOpenedAt, setLessonOpenedAt] = useState<number | null>(null);
@@ -88,9 +93,9 @@ const Lessons = () => {
       const title = userData.learningProfile?.course?.title;
       if (title) setCourseTitle(title);
 
-      if (!courseId) { 
-        setLoading(false); 
-        return; 
+      if (!courseId) {
+        setLoading(false);
+        return;
       }
 
       // Get roadmap (levels + lessons)
@@ -111,16 +116,16 @@ const Lessons = () => {
             });
           } else {
             // Fallback: first level is always unlocked
-            levelsData.forEach(lv => { 
-              lv.isUnlocked = lv.order === 1; 
+            levelsData.forEach(lv => {
+              lv.isUnlocked = lv.order === 1;
               lv.completedLessons = 0;
               lv.score = 0;
             });
           }
         } catch (unlockErr) {
           console.log("Unlock status fetch failed, using fallback:", unlockErr);
-          levelsData.forEach(lv => { 
-            lv.isUnlocked = lv.order === 1; 
+          levelsData.forEach(lv => {
+            lv.isUnlocked = lv.order === 1;
             lv.completedLessons = 0;
             lv.score = 0;
           });
@@ -202,12 +207,56 @@ const Lessons = () => {
     setQuizSubmitted(false);
     setQuizScore(0);
     setQuizResult(null);
+    setIsPracticeQuiz(false);
+    setAiSummary(null);
+    setIsSummarizing(false);
     // Start tracking time
     setLessonOpenedAt(Date.now());
     try {
       const res = await api.get(`/quizzes/lesson/${lesson._id}`);
-      if (res.data.data) setQuiz(res.data.data);
+      if (res.data.data) {
+        setQuiz(res.data.data);
+      }
     } catch { /* no quiz for this lesson */ }
+  };
+
+  const handleGeneratePracticeQuiz = async () => {
+    if (!selectedLesson) return;
+    setGeneratingQuiz(true);
+    try {
+      const topic = `${courseTitle} - ${selectedLesson.title}`;
+      const res = await aiService.generateQuiz(topic);
+      if (res.result && Array.isArray(res.result)) {
+        setQuiz({ _id: "practice", questions: res.result });
+        setIsPracticeQuiz(true);
+        setShowQuiz(true);
+        setQuizAnswers([]);
+        setQuizSubmitted(false);
+        setQuizResult(null);
+        toast.success("AI Practice Quiz generated! ✨");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("AI is unavailable right now. Please try again later.");
+    } finally {
+      setGeneratingQuiz(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!selectedLesson?.content) return;
+
+    setIsSummarizing(true);
+    try {
+      const res = await aiService.summarize(selectedLesson.content);
+      setAiSummary(res.summary);
+      toast.success("Summary generated! ✨");
+    } catch (error) {
+      console.error("AI Summarizer Error:", error);
+      toast.error("AI is currently offline. Please try again later.");
+    } finally {
+      setIsSummarizing(false);
+    }
   };
 
   const handleSubmitQuiz = async () => {
@@ -219,6 +268,11 @@ const Lessons = () => {
     const score = Math.round((correct / quiz.questions.length) * 100);
     setQuizScore(score);
     setQuizSubmitted(true);
+
+    if (isPracticeQuiz) {
+      setQuizResult({ levelCompleted: false, message: "Practice complete. This doesn't affect your formal progress." });
+      return;
+    }
 
     if (selectedLevelId) {
       try {
@@ -297,20 +351,57 @@ const Lessons = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <GlassButton
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleCompleteLesson(selectedLesson._id)}
-                          disabled={completing}
-                        >
-                          {completing ? "Saving..." : "Mark Complete"}
-                        </GlassButton>
-                        <p className="text-[10px] text-muted-foreground">
+                        <div className="flex gap-2">
+                          <GlassButton
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleSummarize}
+                            disabled={isSummarizing || !selectedLesson.content}
+                          >
+                            {isSummarizing ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                            ) : (
+                              <Sparkles size={16} className="mr-1 text-primary" />
+                            )}
+                            AI Summary
+                          </GlassButton>
+                          <GlassButton
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleCompleteLesson(selectedLesson._id)}
+                            disabled={completing}
+                          >
+                            {completing ? "Saving..." : "Mark Complete"}
+                          </GlassButton>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mr-2">
                           Spend ≥30s on this lesson
                         </p>
                       </div>
                     )}
                   </div>
+
+                  {/* AI Summary Box */}
+                  <AnimatePresence>
+                    {aiSummary && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
+                          <div className="flex items-center gap-2 text-primary">
+                            <Sparkles size={16} />
+                            <h4 className="text-sm font-bold uppercase tracking-wider">AI Summary</h4>
+                          </div>
+                          <p className="text-sm text-white/90 leading-relaxed italic">
+                            {aiSummary}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Video */}
                   {selectedLesson.videoUrl && (
@@ -374,11 +465,11 @@ const Lessons = () => {
                   )}
                 </GlassCard>
 
-                {/* Quiz */}
-                {quiz && (
+                {/* Quiz section or Practice Generator */}
+                {quiz ? (
                   <GlassCard className="p-8">
                     <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                      <Trophy size={20} className="text-primary" /> Lesson Quiz
+                      <Trophy size={20} className="text-primary" /> {isPracticeQuiz ? "Practice Quiz" : "Lesson Quiz"}
                     </h2>
 
                     {!showQuiz ? (
@@ -436,12 +527,11 @@ const Lessons = () => {
                                       updated[qi] = oi;
                                       setQuizAnswers(updated);
                                     }}
-                                    className={`p-3 rounded-xl text-left text-sm border transition-all ${
-                                      isCorrect ? "border-green-500 bg-green-500/10 text-green-300"
+                                    className={`p-3 rounded-xl text-left text-sm border transition-all ${isCorrect ? "border-green-500 bg-green-500/10 text-green-300"
                                       : isWrong ? "border-red-500 bg-red-500/10 text-red-300"
-                                      : isSelected ? "border-primary bg-primary/10"
-                                      : "border-white/10 hover:border-white/20 bg-white/5"
-                                    }`}
+                                        : isSelected ? "border-primary bg-primary/10"
+                                          : "border-white/10 hover:border-white/20 bg-white/5"
+                                      }`}
                                   >
                                     <span className="font-bold mr-2">{String.fromCharCode(65 + oi)}.</span>
                                     {opt}
@@ -485,6 +575,18 @@ const Lessons = () => {
                       </div>
                     )}
                   </GlassCard>
+                ) : (
+                  <GlassCard className="p-8 text-center flex flex-col items-center justify-center space-y-4">
+                    <Trophy size={48} className="text-primary/30" />
+                    <div>
+                      <h3 className="text-xl font-bold">No formal quiz for this lesson</h3>
+                      <p className="text-muted-foreground text-sm">You can generate an AI practice quiz to test your understanding.</p>
+                    </div>
+                    <GlassButton variant="primary" onClick={handleGeneratePracticeQuiz} disabled={generatingQuiz}>
+                      {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles size={16} />}
+                      {generatingQuiz ? " Generating..." : "Generate Practice Quiz"}
+                    </GlassButton>
+                  </GlassCard>
                 )}
               </motion.div>
             ) : (
@@ -524,11 +626,10 @@ const Lessons = () => {
                             onClick={() => !isLocked && setExpandedLevel(isExpanded ? null : level._id)}
                           >
                             <div className="flex items-center gap-4">
-                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-lg font-bold ${
-                                isLocked ? "bg-muted text-muted-foreground"
+                              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-lg font-bold ${isLocked ? "bg-muted text-muted-foreground"
                                 : pct === 100 ? "bg-green-500/20 text-green-400"
-                                : "bg-primary/20 text-primary"
-                              }`}>
+                                  : "bg-primary/20 text-primary"
+                                }`}>
                                 {isLocked ? <Lock size={20} /> : pct === 100 ? <CheckCircle2 size={24} /> : level.order}
                               </div>
 

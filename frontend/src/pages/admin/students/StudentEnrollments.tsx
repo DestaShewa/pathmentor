@@ -116,7 +116,7 @@ const StudentEnrollments = () => {
             No enrolled students match the filters.
           </div>
         ) : (
-          Object.entries(groupedEnrollments).map(([courseTitle, students]) => (
+          Object.entries(groupedEnrollments).map(([courseTitle, students]: [string, any[]]) => (
             <section key={courseTitle} className="rounded-3xl border border-white/10 bg-slate-900 p-5">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>

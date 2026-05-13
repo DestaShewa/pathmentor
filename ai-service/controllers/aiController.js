@@ -112,3 +112,7 @@ exports.generateQuiz = async (req, res) => {
         res.status(500).json({ error: 'Failed to generate quiz.' });
     }
 };
+
+exports.healthCheck = async (req, res) => {
+    res.json({ status: 'healthy', service: 'AI Service', port: 5005 });
+};

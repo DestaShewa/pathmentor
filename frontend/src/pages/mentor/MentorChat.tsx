@@ -8,6 +8,7 @@ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+import { useConversations } from "@/hooks/useConversations";
 import { Loader2, AlertCircle } from "lucide-react";
 
 const MentorChat = () => {
@@ -18,6 +19,8 @@ const MentorChat = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const { isConnected, error: socketError } = useChatSocket();
+  const { createConversation } = useConversations();
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -32,7 +35,7 @@ const MentorChat = () => {
     try {
       const profileRes = await api.get("/users/profile");
       const userData = profileRes.data.user;
-      
+
       if (userData.role !== "mentor") {
         navigate("/dashboard");
         return;
@@ -50,6 +53,23 @@ const MentorChat = () => {
   const handleSignOut = () => {
     localStorage.removeItem("token");
     navigate("/auth");
+  };
+
+  const handleSelectConversation = async (conv: any) => {
+    if (conv.isVirtual) {
+      setIsCreating(true);
+      try {
+        const userId = conv.participant._id;
+        const realConv = await createConversation(userId);
+        setSelectedConversation(realConv);
+      } catch (err) {
+        console.error("Failed to create conversation:", err);
+      } finally {
+        setIsCreating(false);
+      }
+    } else {
+      setSelectedConversation(conv);
+    }
   };
 
   if (loading) {
@@ -85,9 +105,8 @@ const MentorChat = () => {
       />
 
       <main
-        className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto transition-all duration-300 ${
-          sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"
-        }`}
+        className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto transition-all duration-300 ${sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"
+          }`}
       >
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -126,10 +145,15 @@ const MentorChat = () => {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-1 h-full"
+            className="lg:col-span-1 h-full relative"
           >
+            {isCreating && (
+              <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            )}
             <ConversationList
-              onSelectConversation={setSelectedConversation}
+              onSelectConversation={handleSelectConversation}
               selectedId={selectedConversation?._id}
             />
           </motion.div>

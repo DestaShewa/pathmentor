@@ -4,6 +4,7 @@ const Level = require("../models/Level");
 const Achievement = require("../models/Achievement");
 const Course = require("../models/Course");
 const User = require("../models/User");
+const DailyProgress = require("../models/DailyProgress");
 const asyncHandler = require("../middleware/asyncHandler");
 const { createNotification } = require("./notificationController");
 
@@ -79,19 +80,19 @@ const checkAchievements = async (userId, progress) => {
   progress.levelsProgress.forEach(lp => {
     totalCompletedLessons += lp.completedLessons.length;
   });
- const totalLevels = progress.levelsProgress.length;
+  const totalLevels = progress.levelsProgress.length;
 
-const completedLevels = progress.levelsProgress.filter(
-  lp => lp.isCompleted
-).length;
+  const completedLevels = progress.levelsProgress.filter(
+    lp => lp.isCompleted
+  ).length;
 
-if (totalLevels > 0 && completedLevels === totalLevels) {
-  await createAchievementIfNotExists(
-    userId,
-    "Course Completed",
-    "You completed a full course"
-  );
-}
+  if (totalLevels > 0 && completedLevels === totalLevels) {
+    await createAchievementIfNotExists(
+      userId,
+      "Course Completed",
+      "You completed a full course"
+    );
+  }
 
   // const completedLevels = progress.levelsProgress.filter(lp => lp.isCompleted).length;
   const totalXP = progress.xpEarned;
@@ -125,18 +126,18 @@ if (totalLevels > 0 && completedLevels === totalLevels) {
   }
 
   const perfectScoreLevel = progress.levelsProgress.find(
-  lp => lp.score === 100
-);
-
-if (perfectScoreLevel) {
-  await createAchievementIfNotExists(
-    userId,
-    "Perfect Score",
-    "Achieved 100% in a level"
+    lp => lp.score === 100
   );
-}
 
-  
+  if (perfectScoreLevel) {
+    await createAchievementIfNotExists(
+      userId,
+      "Perfect Score",
+      "Achieved 100% in a level"
+    );
+  }
+
+
 };
 
 
@@ -286,7 +287,7 @@ const completeLesson = asyncHandler(async (req, res) => {
 
   // Calculate how many full calendar days since last study
   const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const lastMidnight  = lastStudied
+  const lastMidnight = lastStudied
     ? new Date(lastStudied.getFullYear(), lastStudied.getMonth(), lastStudied.getDate())
     : null;
   const daysDiff = lastMidnight
@@ -313,6 +314,27 @@ const completeLesson = asyncHandler(async (req, res) => {
 
   // Check achievements
   await checkAchievements(userId, progress);
+
+  // ── Log daily activity ──────────────────────────────────────────
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  try {
+    await DailyProgress.findOneAndUpdate(
+      { user: userId, date: today },
+      {
+        $inc: {
+          xp: xp,
+          timeSpentSeconds: timeSpentSeconds,
+          lessonsCompleted: 1
+        }
+      },
+      { upsert: true }
+    );
+  } catch (logErr) {
+    console.error("Failed to log daily activity:", logErr);
+  }
+  // ──────────────────────────────────────────────────────────────
 
   res.json({
     success: true,
@@ -383,8 +405,8 @@ const updateLevelScore = asyncHandler(async (req, res) => {
     message: levelProgress.isCompleted
       ? "Level completed! Next level unlocked."
       : score < PASS_THRESHOLD
-      ? `Score ${score}% — need ${PASS_THRESHOLD}% to unlock next level. Try again!`
-      : `Score saved. Complete all ${totalLessons} lessons to unlock next level.`,
+        ? `Score ${score}% — need ${PASS_THRESHOLD}% to unlock next level. Try again!`
+        : `Score saved. Complete all ${totalLessons} lessons to unlock next level.`,
     levelCompleted: levelProgress.isCompleted,
     score: levelProgress.score,
     passThreshold: PASS_THRESHOLD,
@@ -562,62 +584,66 @@ GET /api/progress/weekly-report
 */
 const getWeeklyReport = asyncHandler(async (req, res) => {
   const userId = req.user._id;
+  const now = new Date();
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
   oneWeekAgo.setHours(0, 0, 0, 0);
 
-  // Achievements earned this week
+  // 1. Fetch real daily activity from DailyProgress
+  const dailyLogs = await DailyProgress.find({
+    user: userId,
+    date: { $gte: oneWeekAgo }
+  }).sort({ date: 1 });
+
+  // 2. Fetch achievements earned this week
   const weeklyAchievements = await Achievement.find({
     user: userId,
     earnedAt: { $gte: oneWeekAgo }
   });
 
-  // All progress docs for this user
+  // Calculate totals from daily logs
+  let totalXP = 0;
+  let totalTimeSeconds = 0;
+  let totalLessons = 0;
+
+  dailyLogs.forEach(log => {
+    totalXP += log.xp;
+    totalTimeSeconds += log.timeSpentSeconds;
+    totalLessons += log.lessonsCompleted;
+  });
+
+  // 3. Current topics mastered (levels completed this week)
   const progresses = await Progress.find({ user: userId });
-
-  let weeklyXP = 0;
-  let weeklyLessons = 0;
   let weeklyCompletedLevels = 0;
-
   progresses.forEach(p => {
     p.levelsProgress.forEach(lp => {
-      // Count only lessons completed this week by checking the lesson IDs
-      // against the progress updatedAt is not granular enough — we track
-      // what we can: if the level was completed this week, count it
       if (lp.isCompleted && lp.updatedAt && new Date(lp.updatedAt) >= oneWeekAgo) {
         weeklyCompletedLevels++;
       }
     });
   });
 
-  // For XP and lessons this week, use the Progress updatedAt as a proxy
-  // and calculate the delta from the weekly snapshot stored on the doc.
-  // Since we don't store per-lesson timestamps, we use the progress
-  // docs updated this week and sum their current values as a best estimate.
-  const recentProgresses = progresses.filter(
-    p => p.updatedAt && new Date(p.updatedAt) >= oneWeekAgo
-  );
-
-  recentProgresses.forEach(p => {
-    weeklyXP += p.xpEarned;
-    p.levelsProgress.forEach(lp => {
-      weeklyLessons += lp.completedLessons.length;
-    });
-  });
-
-  // Estimate hours (1 lesson ≈ 30 min)
-  const estimatedHours = Math.round((weeklyLessons * 0.5) * 10) / 10;
+  // Estimate hours if timeSpentSeconds is 0 (fallback for old data)
+  let hoursStudied = Math.round((totalTimeSeconds / 3600) * 10) / 10;
+  if (hoursStudied === 0 && totalLessons > 0) {
+    hoursStudied = Math.round((totalLessons * 0.5) * 10) / 10;
+  }
 
   res.json({
     success: true,
     report: {
-      hoursStudied: estimatedHours,
+      hoursStudied,
       topicsMastered: weeklyCompletedLevels,
-      xpEarned: weeklyXP,
-      lessonsCompleted: weeklyLessons,
+      xpEarned: totalXP,
+      lessonsCompleted: totalLessons,
       achievementsEarned: weeklyAchievements.length,
       weekStart: oneWeekAgo.toISOString(),
-      weekEnd: new Date().toISOString()
+      weekEnd: now.toISOString(),
+      dailyLogs: dailyLogs.map(log => ({
+        date: log.date,
+        xp: log.xp,
+        lessons: log.lessonsCompleted
+      }))
     }
   });
 });
@@ -631,7 +657,7 @@ GET /api/progress/reminder
 const getSmartReminder = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   const user = await User.findById(userId).select("streak updatedAt");
-  
+
   const streak = user?.streak?.current || 0;
   const lastActivity = user?.updatedAt || new Date();
   const hoursSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60));

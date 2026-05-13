@@ -15,7 +15,7 @@ interface Message {
   sender: {
     _id: string;
     name: string;
-    email: string;
+    email?: string;
     role?: string;
   } | null;
   message: string;
@@ -184,9 +184,8 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
               {/* Avatar */}
               {showAvatar ? (
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    isOwn ? "bg-primary/20 text-primary" : "bg-white/10 text-white"
-                  }`}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isOwn ? "bg-primary/20 text-primary" : "bg-white/10 text-white"
+                    }`}
                 >
                   {msg.sender ? (
                     <span className="text-xs font-bold">
@@ -209,13 +208,12 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
                     </span>
                     {msg.sender.role && (
                       <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
-                          msg.sender.role === "admin"
+                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${msg.sender.role === "admin"
                             ? "bg-red-500/20 text-red-400"
                             : msg.sender.role === "mentor"
-                            ? "bg-purple-500/20 text-purple-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        }`}
+                              ? "bg-purple-500/20 text-purple-400"
+                              : "bg-blue-500/20 text-blue-400"
+                          }`}
                       >
                         {msg.sender.role}
                       </span>
@@ -224,11 +222,10 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
                 )}
 
                 <div
-                  className={`rounded-2xl ${
-                    isOwn
+                  className={`rounded-2xl ${isOwn
                       ? "bg-primary text-black rounded-br-sm"
                       : "bg-white/10 text-white rounded-bl-sm"
-                  } ${!msg.message && hasAttachments ? "bg-transparent p-0" : "px-4 py-2"}`}
+                    } ${!msg.message && hasAttachments ? "bg-transparent p-0" : "px-4 py-2"}`}
                 >
                   {msg.message && (
                     <p className="text-sm break-words whitespace-pre-wrap">

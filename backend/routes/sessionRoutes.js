@@ -19,7 +19,7 @@ router.get("/:id", guard, async (req, res) => {
     const Session = require("../models/Session");
     const session = await Session.findById(req.params.id)
       .populate("studentId", "name email")
-      .populate("mentorId",  "name email learningProfile.skillTrack");
+      .populate("mentorId", "name email learningProfile.skillTrack");
 
     if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -27,7 +27,7 @@ router.get("/:id", guard, async (req, res) => {
     const userId = req.user._id.toString();
     const isParticipant =
       session.studentId?._id?.toString() === userId ||
-      session.mentorId?._id?.toString()  === userId;
+      session.mentorId?._id?.toString() === userId;
 
     if (!isParticipant) return res.status(403).json({ message: "Access denied" });
 
@@ -53,6 +53,27 @@ router.put("/:id/meeting-link", guard, authorize("mentor"), async (req, res) => 
     session.meetingLink = meetingLink;
     await session.save();
     res.json({ success: true, data: session });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete a session review (admin only)
+router.delete("/:id/review", guard, authorize("admin"), async (req, res) => {
+  try {
+    const Session = require("../models/Session");
+    const session = await Session.findById(req.params.id);
+
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    // Clear the rating and comment - bypass validators to avoid min:1 issues
+    await Session.findByIdAndUpdate(req.params.id, {
+      $set: { studentRating: null, studentComment: "" }
+    }, { runValidators: false });
+
+    res.json({ success: true, message: "Review deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
