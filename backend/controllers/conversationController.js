@@ -91,8 +91,8 @@ exports.getOrCreateConversation = async (req, res) => {
     if (type === "study_buddy") {
       const match = await Match.findOne({
         $or: [
-          { student: userId, buddy: otherUserId },
-          { student: otherUserId, buddy: userId }
+          { student1: userId, student2: otherUserId },
+          { student1: otherUserId, student2: userId }
         ],
         status: "accepted"
       });
