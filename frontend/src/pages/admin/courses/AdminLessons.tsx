@@ -7,6 +7,9 @@ const AdminLessons = () => {
   const { toast } = useToast();
   const [lessons, setLessons] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState("");
   const [levels, setLevels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -41,7 +44,10 @@ const AdminLessons = () => {
   const fetchCourses = async () => {
     try {
       const res = await api.get("/admin/courses");
-      setCourses(res.data.data || []);
+      const data = res.data.data || [];
+      setCourses(data);
+      const cats = Array.from(new Set(data.map((c: any) => (c.category || "")).filter(Boolean)));
+      setCategories(cats);
     } catch { /* ignore */ }
   };
 
@@ -114,6 +120,36 @@ const AdminLessons = () => {
           className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:opacity-90"
         >
           <Plus size={18} /> Add Lesson
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <select
+          value={categoryFilter}
+          onChange={e => { setCategoryFilter(e.target.value); setSelectedCourseFilter(""); }}
+          className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-white outline-none focus:border-indigo-500"
+        >
+          <option value="">All Categories</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={selectedCourseFilter}
+          onChange={e => setSelectedCourseFilter(e.target.value)}
+          className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-2 text-white outline-none focus:border-indigo-500"
+        >
+          <option value="">All Courses</option>
+          {courses
+            .filter(c => !categoryFilter || (c.category || "") === categoryFilter)
+            .map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+        </select>
+
+        <button
+          onClick={() => { setCategoryFilter(""); setSelectedCourseFilter(""); }}
+          className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white hover:bg-white/10"
+        >
+          Reset
         </button>
       </div>
 
@@ -245,7 +281,13 @@ const AdminLessons = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {lessons.map(lesson => (
+              {lessons
+                .filter(lesson => {
+                  if (selectedCourseFilter) return lesson.course?._id === selectedCourseFilter;
+                  if (categoryFilter) return (lesson.course?.category || "") === categoryFilter;
+                  return true;
+                })
+                .map(lesson => (
                 <tr key={lesson._id} className="hover:bg-white/5">
                   <td className="p-4">
                     <div className="font-medium text-white">{lesson.title}</div>

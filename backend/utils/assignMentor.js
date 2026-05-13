@@ -114,7 +114,23 @@ const assignMentor = async (student) => {
     scored.push({ mentor, score });
   }
 
-  if (!scored.length) return null; // No matching mentor found
+  if (!scored.length) {
+    // No strict match found — fallback to least-loaded approved mentor
+    console.info(`assignMentor: no strict match for student ${student._id}. Falling back to least-loaded mentor.`);
+    const fallback = candidates
+      .filter(m => (m.studentCount || 0) < MAX_STUDENTS_PER_MENTOR)
+      .sort((a, b) => (a.studentCount || 0) - (b.studentCount || 0))[0];
+
+    if (!fallback) {
+      console.info(`assignMentor: no available mentors under cap for student ${student._id}`);
+      return null;
+    }
+
+    // Assign fallback mentor
+    await User.findByIdAndUpdate(student._id, { assignedMentor: fallback._id });
+    await User.findByIdAndUpdate(fallback._id, { $inc: { studentCount: 1 } });
+    return fallback;
+  }
 
   // Sort by score desc, then by studentCount asc as tiebreaker
   scored.sort((a, b) => {

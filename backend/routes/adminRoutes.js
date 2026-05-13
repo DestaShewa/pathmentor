@@ -434,13 +434,17 @@ router.post("/auto-assign-mentors", async (req, res) => {
     });
 
     let assigned = 0, failed = 0;
+    const failedStudents = [];
     for (const student of unassigned) {
       const mentor = await assignMentor(student);
       if (mentor) assigned++;
-      else failed++;
+      else {
+        failed++;
+        failedStudents.push({ _id: student._id, name: student.name });
+      }
     }
 
-    res.json({ success: true, assigned, failed, total: unassigned.length });
+    res.json({ success: true, assigned, failed, total: unassigned.length, failedStudents });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

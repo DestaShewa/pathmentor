@@ -53,7 +53,16 @@ const MentorPerformance = () => {
     setAutoAssigning(true);
     try {
       const res = await api.post("/admin/auto-assign-mentors");
-      toast({ title: "Auto-assignment complete!", description: `${res.data.assigned} students assigned, ${res.data.failed} could not be assigned.` });
+      const assigned = res.data.assigned || 0;
+      const failed = res.data.failed || 0;
+      const failedList = res.data.failedStudents || [];
+      let desc = `${assigned} students assigned, ${failed} could not be assigned.`;
+      if (failedList.length > 0) {
+        const names = failedList.slice(0, 5).map(s => s.name).join(", ");
+        desc += ` Failed: ${names}${failedList.length > 5 ? ' +more' : ''}`;
+        console.info("Auto-assign failed students:", failedList);
+      }
+      toast({ title: "Auto-assignment complete!", description: desc });
       fetchData();
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });

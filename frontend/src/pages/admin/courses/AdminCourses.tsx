@@ -5,6 +5,8 @@ import api from "../../../services/api";
 const AdminCourses = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [mentors, setMentors] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategoryOption, setSelectedCategoryOption] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [courseTitle, setCourseTitle] = useState("");
   const [courseDescription, setCourseDescription] = useState("");
@@ -67,6 +69,7 @@ const AdminCourses = () => {
 
   useEffect(() => {
     fetchMentors();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -83,11 +86,25 @@ const AdminCourses = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/admin/categories');
+      const list = (res.data?.data || []).map((c: any) => c.name).filter(Boolean);
+      setCategories(list);
+      // default selection
+      if (!selectedCategoryOption && list.length > 0) setSelectedCategoryOption(list[0]);
+    } catch (err: any) {
+      console.error('Failed to load categories', err);
+      setCategories([]);
+    }
+  };
+
   const resetForm = () => {
     setEditingCourse(null);
     setCourseTitle("");
     setCourseDescription("");
     setCourseCategory("");
+    setSelectedCategoryOption("");
     setSelectedMentorId("");
     setFormError("");
     setFormSuccess("");
@@ -102,7 +119,19 @@ const AdminCourses = () => {
     setEditingCourse(course);
     setCourseTitle(course.title || "");
     setCourseDescription(course.description || "");
-    setCourseCategory(course.category || "");
+    // set category option: prefer existing category option, otherwise use custom
+    if (course.category) {
+      if (categories.includes(course.category)) {
+        setSelectedCategoryOption(course.category);
+        setCourseCategory("");
+      } else {
+        setSelectedCategoryOption("custom");
+        setCourseCategory(course.category);
+      }
+    } else {
+      setSelectedCategoryOption("");
+      setCourseCategory("");
+    }
     setSelectedMentorId(course.instructor?._id || "");
     setFormError("");
     setFormSuccess("");
@@ -136,7 +165,9 @@ const AdminCourses = () => {
       return;
     }
 
-    if (!courseTitle.trim() || !courseDescription.trim() || !courseCategory.trim() || !selectedMentorId) {
+    // determine final category (select option or custom input)
+    const finalCategory = selectedCategoryOption === 'custom' ? courseCategory.trim() : (selectedCategoryOption || courseCategory.trim());
+    if (!courseTitle.trim() || !courseDescription.trim() || !finalCategory || !selectedMentorId) {
       setFormError("Title, description, category, and assigned mentor are required.");
       return;
     }
@@ -146,7 +177,7 @@ const AdminCourses = () => {
       const payload = {
         title: courseTitle.trim(),
         description: courseDescription.trim(),
-        category: courseCategory.trim(),
+        category: finalCategory,
         instructorId: selectedMentorId,
       };
 
@@ -300,13 +331,28 @@ const AdminCourses = () => {
               </label>
               <label className="space-y-2 text-sm text-slate-200">
                 Category
-                <input
-                  value={courseCategory}
-                  onChange={(event) => setCourseCategory(event.target.value)}
-                  type="text"
-                  placeholder="Web Development"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                />
+                <div className="flex gap-2">
+                  <select
+                    value={selectedCategoryOption}
+                    onChange={(e) => setSelectedCategoryOption(e.target.value)}
+                    className="flex-1 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="custom">Other (enter custom)</option>
+                  </select>
+                </div>
+                {selectedCategoryOption === 'custom' && (
+                  <input
+                    value={courseCategory}
+                    onChange={(event) => setCourseCategory(event.target.value)}
+                    type="text"
+                    placeholder="e.g. Cybersecurity"
+                    className="w-full mt-2 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                )}
               </label>
               <label className="space-y-2 text-sm text-slate-200">
                 Assign Mentor
