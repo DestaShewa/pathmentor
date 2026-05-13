@@ -42,19 +42,31 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
     const courseIds = courses.map(c => c._id);
 
     // Get assigned students directly from User model
-    const assignedStudentsCount = await User.countDocuments({ assignedMentor: mentorId, role: "student" });
+    const assignedStudents = await User.find({ assignedMentor: mentorId, role: "student" }).select("name email learningProfile.experienceLevel learningProfile.skillTrack");
+    const assignedStudentsCount = assignedStudents.length;
 
     const enrollments = await Progress.find({ course: { $in: courseIds } })
-      .populate("user", "name email learningProfile.experienceLevel")
+      .populate("user", "name email learningProfile.experienceLevel learningProfile.skillTrack")
       .sort({ updatedAt: -1 });
 
     const studentMap = new Map();
+    
+    // 1. Add assigned students to map first
+    assignedStudents.forEach(student => {
+      studentMap.set(student._id.toString(), {
+        ...student.toObject(),
+        xp: 0,
+        course: student.learningProfile?.skillTrack || ""
+      });
+    });
+
+    // 2. Add or update with enrollment progress 
     enrollments.forEach(e => {
-      if (e.user && !studentMap.has(e.user._id.toString())) {
+      if (e.user) {
         studentMap.set(e.user._id.toString(), {
           ...e.user.toObject(),
           xp: e.xpEarned,
-          course: courses.find(c => c._id.toString() === e.course.toString())?.title || ""
+          course: courses.find(c => c._id.toString() === e.course.toString())?.title || e.user.learningProfile?.skillTrack || ""
         });
       }
     });
@@ -304,7 +316,14 @@ router.post("/quiz", guard, authorize("mentor"), async (req, res) => {
   try {
     const { lessonId, questions } = req.body;
     if (!lessonId || !questions?.length) return res.status(400).json({ message: "lessonId and questions are required" });
-    const quiz = await Quiz.create({ lesson: lessonId, questions });
+    
+    // Update existing or create new quiz
+    const quiz = await Quiz.findOneAndUpdate(
+      { lesson: lessonId },
+      { lesson: lessonId, questions },
+      { upsert: true, new: true }
+    );
+    
     res.status(201).json({ success: true, data: quiz });
   } catch (err) {
     res.status(500).json({ message: err.message });
