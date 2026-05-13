@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, BookOpen, BarChart, Users, Settings,
   ChevronLeft, Clock3, ShieldCheck, Trophy, Award,
-  Bell, Calendar, User, FolderKanban, LifeBuoy,
+  Bell, Calendar, User, FolderKanban, LifeBuoy,MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,7 @@ export const DashboardSidebar = ({
     { icon: LayoutDashboard, label: "Dashboard",     id: "dashboard" },
     { icon: BookOpen,        label: "My Courses",    id: "lessons" },
     { icon: BarChart,        label: "Progress",      id: "progress" },
+    { icon: MessageCircle, label: "Social Chat", id: "socialchat" },
     { icon: Trophy,          label: "Leaderboard",   id: "leaderboard" },
     { icon: Award,           label: "Achievements",  id: "achievements" },
     { icon: Bell,            label: "Announcements", id: "announcements" },
