@@ -34,6 +34,7 @@ const ClassUpload = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lessonFileInputRef = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<any>(null);
   const [course, setCourse] = useState<any>(null);
   const [allCourses, setAllCourses] = useState<any[]>([]);
@@ -60,6 +61,7 @@ const ClassUpload = () => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([{ question: "", options: ["", "", "", ""], correctAnswer: 0 }]);
   const [savingQuiz, setSavingQuiz] = useState(false);
   const [existingQuiz, setExistingQuiz] = useState<any>(null);
+  const [showQuizModal, setShowQuizModal] = useState(false);
 
   useEffect(() => { const t = localStorage.getItem("token"); if (!t) { navigate("/auth"); return; } fetchData(); }, [id, navigate]);
   useEffect(() => { if (selectedLesson) fetchExistingQuiz(selectedLesson); }, [selectedLesson]);
@@ -102,16 +104,50 @@ const ClassUpload = () => {
   };
 
   const fetchExistingQuiz = async (lid: string) => {
-    try { const r = await api.get(`/mentor/quiz/${lid}`); setExistingQuiz(r.data.data); if (r.data.data?.questions?.length > 0) setQuestions(r.data.data.questions.map((q: any) => ({ question: q.question, options: q.options, correctAnswer: q.correctAnswer }))); }
-    catch { setExistingQuiz(null); }
+    try {
+      const r = await api.get(`/mentor/quiz/${lid}`);
+      setExistingQuiz(r.data.data);
+      if (r.data.data?.questions?.length > 0) setQuestions(r.data.data.questions.map((q: any) => ({ question: q.question, options: q.options, correctAnswer: q.correctAnswer })));
+      return r.data.data;
+    } catch (err) {
+      setExistingQuiz(null);
+      return null;
+    }
+  };
+
+  const viewQuiz = async (lessonId: string) => {
+    const q = await fetchExistingQuiz(lessonId);
+    if (q) setShowQuizModal(true);
+    else toast({ title: "No quiz", description: "This lesson has no quiz yet", variant: "destructive" });
+  };
+
+  const editQuiz = (lessonId: string) => {
+    setSelectedLesson(lessonId);
+    setActiveTab("quiz");
+    // fetchExistingQuiz will run via effect; focus the builder
   };
 
   const handleSaveLesson = async () => {
     if (!lessonTitle.trim() || !selectedLevel) { toast({ title: "Error", description: "Title and level are required", variant: "destructive" }); return; }
     setSavingLesson(true);
     try {
-      await api.post("/mentor/lesson", { title: lessonTitle.trim(), description: lessonDesc.trim(), content: lessonContent.trim(), videoUrl: lessonVideo.trim() || undefined, order: lessonOrder, levelId: selectedLevel, courseId: selectedCourseId });
+      const res = await api.post("/mentor/lesson", { title: lessonTitle.trim(), description: lessonDesc.trim(), content: lessonContent.trim(), videoUrl: lessonVideo.trim() || undefined, order: lessonOrder, levelId: selectedLevel, courseId: selectedCourseId });
+      const created = res.data.data || res.data;
       toast({ title: "Lesson created!" });
+
+      // If files (including video) were selected before creating, upload them to the new lesson
+      if (uploadFiles.length > 0 && created?._id) {
+        setUploading(true);
+        try {
+          const fd = new FormData(); uploadFiles.forEach(f => fd.append("files", f));
+          await api.post(`/mentor/lesson/${created._id}/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+          toast({ title: "Files uploaded!", description: `${uploadFiles.length} file(s) attached.` });
+          setUploadFiles([]);
+        } catch (e: any) {
+          toast({ title: "Upload failed", description: e?.response?.data?.message || "Upload error", variant: "destructive" });
+        } finally { setUploading(false); }
+      }
+
       setLessonTitle(""); setLessonDesc(""); setLessonContent(""); setLessonVideo(""); setLessonOrder(1);
       const r = await api.get(`/mentor/course/${selectedCourseId}/lessons`); setLessons(r.data.data || []);
     } catch (e: any) { toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" }); }
@@ -255,6 +291,25 @@ const ClassUpload = () => {
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Lesson Content (text or HTML)</label>
                 <textarea value={lessonContent} onChange={e => setLessonContent(e.target.value)} rows={5} placeholder="Write your lesson content here..." className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary resize-none" />
               </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Attach Files (optional)</label>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => lessonFileInputRef.current?.click()} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm">Select files</button>
+                  <p className="text-xs text-muted-foreground">{uploadFiles.length} file(s) selected</p>
+                </div>
+                <input ref={lessonFileInputRef} type="file" multiple accept={ACCEPTED} className="hidden" onChange={e => handleFileSelect(e.target.files)} />
+                {uploadFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadFiles.map((f, fi) => (
+                      <div key={fi} className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                        <span className="text-xs flex-1 truncate">{f.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{formatSize(f.size)}</span>
+                        <button onClick={() => removeUploadFile(fi)} className="p-1 text-red-400 hover:bg-red-500/10 rounded"><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <GlassButton variant="primary" glow onClick={handleSaveLesson} disabled={savingLesson} className="w-full">
                 <Save size={16} /> {savingLesson ? "Saving..." : "Save Lesson"}
               </GlassButton>
@@ -279,6 +334,10 @@ const ClassUpload = () => {
                             className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${isUp ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground hover:text-foreground hover:bg-white/10"}`}>
                             <Paperclip size={13} /> {isUp ? "Cancel" : "Attach Files"}
                           </button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => viewQuiz(lesson._id)} className="text-xs px-3 py-1 rounded-xl bg-white/5 hover:bg-white/10">View Quiz</button>
+                            <button onClick={() => editQuiz(lesson._id)} className="text-xs px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20">Edit Quiz</button>
+                          </div>
                         </div>
 
                         {lesson.attachments && lesson.attachments.length > 0 && (
@@ -355,7 +414,11 @@ const ClassUpload = () => {
                   <option value="">Select a lesson...</option>
                   {lessons.map(l => <option key={l._id} value={l._id}>{l.title}</option>)}
                 </select>
-                {existingQuiz && <p className="text-xs text-amber-400 mt-1">This lesson already has a quiz. Saving will create a new one.</p>}
+                {existingQuiz && <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-amber-400">This lesson already has a quiz. Saving will overwrite it.</p>
+                  <button onClick={() => setShowQuizModal(true)} className="text-xs text-primary hover:underline">View</button>
+                  <button onClick={() => { /* focus builder */ setActiveTab("quiz"); }} className="text-xs text-primary hover:underline">Edit</button>
+                </div>}
               </div>
               <div className="space-y-4">
                 {questions.map((q, qi) => (
@@ -386,6 +449,34 @@ const ClassUpload = () => {
             </GlassCard>
           </motion.div>
         )}
+        <AnimatePresence>
+          {showQuizModal && existingQuiz && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowQuizModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <GlassCard className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold">Quiz Preview</h3>
+                    <button onClick={() => setShowQuizModal(false)} className="p-2 rounded hover:bg-white/5"><X size={16} /></button>
+                  </div>
+                  <div className="space-y-3">
+                    {existingQuiz.questions?.map((q: any, i: number) => (
+                      <div key={i} className="bg-white/5 p-4 rounded-xl">
+                        <p className="font-semibold">{i + 1}. {q.question}</p>
+                        <div className="grid sm:grid-cols-2 gap-2 mt-2">
+                          {q.options.map((o: string, oi: number) => (
+                            <div key={oi} className={`p-2 rounded-xl ${q.correctAnswer === oi ? "bg-emerald-500/20 border border-emerald-400" : "bg-white/5"}`}>
+                              <p className="text-sm">{String.fromCharCode(65 + oi)}. {o}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
           </>
         )}
       </main>

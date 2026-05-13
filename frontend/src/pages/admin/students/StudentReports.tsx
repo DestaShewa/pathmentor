@@ -25,11 +25,12 @@ const TRACK_COLORS = [
 
 const StudentReports = () => {
   const [data, setData] = useState<ReportData | null>(null);
+  const [range, setRange] = useState<"daily"|"weekly"|"monthly"|"yearly">("weekly");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  useEffect(() => { fetchReports(); }, []);
+  useEffect(() => { fetchReports(); }, [range]);
 
   useEffect(() => {
     if (data) drawChart();
@@ -39,7 +40,8 @@ const StudentReports = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/admin/reports");
+      const res = await api.get(`/admin/reports?range=${range}`);
+      // backend returns { success, stats, topCourses, trackDistribution, newStudentsChart, range }
       setData(res.data);
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to load reports");
@@ -132,13 +134,17 @@ const StudentReports = () => {
       [],
       ["Skill Track", "Students"],
       ...data.trackDistribution.map(t => [t.track, t.count]),
+      [],
+      ["New Students Chart", `range=${range}`],
+      ["Label", "Count"],
+      ...data.newStudentsChart.map(d => [d.label, d.count]),
     ];
-    const csv = rows.map(r => r.join(",")).join("\n");
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `PathMentor_Report_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `PathMentor_Report_${range}_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -213,9 +219,19 @@ const StudentReports = () => {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* New students chart */}
         <div className="lg:col-span-2 bg-white/[0.02] border border-white/10 rounded-2xl p-6">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-            <TrendingUp size={16} className="text-blue-400" /> New Students — Last 7 Days
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <TrendingUp size={16} className="text-blue-400" /> New Students — {range === "daily" ? "Last 24 Hours" : range === "monthly" ? "Last 30 Days" : range === "yearly" ? "Last 12 Months" : "Last 7 Days"}
+            </h3>
+            <div className="flex items-center gap-2">
+              <select value={range} onChange={e => setRange(e.target.value as any)} className="rounded-xl bg-white/5 border border-white/10 text-sm text-white px-3 py-2">
+                <option value="daily">Daily (24h)</option>
+                <option value="weekly">Weekly (7d)</option>
+                <option value="monthly">Monthly (30d)</option>
+                <option value="yearly">Yearly (12m)</option>
+              </select>
+            </div>
+          </div>
           <div className="w-full">
             <canvas ref={canvasRef} className="w-full" />
           </div>

@@ -1,11 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const { guard, authorize } = require("../middleware/authMiddleware");
-const { bookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability } = require("../controllers/sessionController");
+const { bookSession, mentorBookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability } = require("../controllers/sessionController");
 
 router.get("/mentors", guard, getAvailableMentors);
 router.get("/mentor/:mentorId/availability", guard, getMentorAvailability);
 router.post("/book", guard, authorize("student"), bookSession);
+// Mentor booking a session for a student
+router.post("/book-by-mentor", guard, authorize("mentor"), mentorBookSession);
 router.get("/my", guard, authorize("student"), getMySessions);
 router.put("/:id/cancel", guard, cancelSession);
 router.put("/:id/postpone", guard, authorize("mentor"), postponeSession);

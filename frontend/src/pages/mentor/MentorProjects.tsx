@@ -51,6 +51,7 @@ const MentorProjects = () => {
   const [students, setStudents]   = useState<Student[]>([]);
   const [loading, setLoading]     = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [expanded, setExpanded]   = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen]           = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -111,20 +112,41 @@ const MentorProjects = () => {
     }
     setSaving(true);
     try {
-      await api.post("/mentor/projects", {
-        title: title.trim(),
-        description: description.trim(),
-        instructions: instructions.trim() || undefined,
-        dueDate: dueDate || undefined,
-        assignedTo: selectedStudents
-      });
-      toast({ title: "Project assigned!" });
+      if (editingProjectId) {
+        await api.put(`/mentor/projects/${editingProjectId}`, {
+          title: title.trim(),
+          description: description.trim(),
+          instructions: instructions.trim() || undefined,
+          dueDate: dueDate || undefined,
+          assignedTo: selectedStudents
+        });
+        toast({ title: "Project updated!" });
+      } else {
+        await api.post("/mentor/projects", {
+          title: title.trim(),
+          description: description.trim(),
+          instructions: instructions.trim() || undefined,
+          dueDate: dueDate || undefined,
+          assignedTo: selectedStudents
+        });
+        toast({ title: "Project assigned!" });
+      }
       setShowModal(false);
       resetForm();
       fetchData();
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setSaving(false); }
+  };
+
+  const handleEditProject = (project: Project) => {
+    setEditingProjectId(project._id);
+    setTitle(project.title || "");
+    setDescription(project.description || "");
+    setInstructions(project.instructions || "");
+    setDueDate(project.dueDate || "");
+    setSelectedStudents(project.assignedTo?.map(s => s._id) || []);
+    setShowModal(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -247,6 +269,9 @@ const MentorProjects = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => handleEditProject(project)} className="p-2 text-primary hover:bg-white/5 rounded-xl transition-all">
+                            Edit
+                          </button>
                           <button onClick={() => handleDelete(project._id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
                             <Trash2 size={15} />
                           </button>
@@ -352,8 +377,8 @@ const MentorProjects = () => {
               onClick={e => e.stopPropagation()} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <GlassCard className="p-6 border-primary/20">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-xl font-bold flex items-center gap-2"><FolderKanban size={18} className="text-primary" /> Assign New Project</h2>
-                  <button onClick={() => { setShowModal(false); resetForm(); }} className="p-2 rounded-xl hover:bg-white/10"><X size={18} /></button>
+                  <h2 className="text-xl font-bold flex items-center gap-2"><FolderKanban size={18} className="text-primary" /> {editingProjectId ? "Edit Project" : "Assign New Project"}</h2>
+                  <button onClick={() => { setShowModal(false); resetForm(); setEditingProjectId(null); }} className="p-2 rounded-xl hover:bg-white/10"><X size={18} /></button>
                 </div>
 
                 <div className="space-y-4">
@@ -431,9 +456,9 @@ const MentorProjects = () => {
 
                 <div className="flex gap-3 mt-6">
                   <GlassButton variant="primary" glow onClick={handleCreate} disabled={saving} className="flex-1">
-                    <Save size={16} /> {saving ? "Assigning..." : "Assign Project"}
+                    <Save size={16} /> {saving ? (editingProjectId ? "Saving..." : "Assigning...") : (editingProjectId ? "Update Project" : "Assign Project")}
                   </GlassButton>
-                  <GlassButton variant="secondary" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</GlassButton>
+                  <GlassButton variant="secondary" onClick={() => { setShowModal(false); resetForm(); setEditingProjectId(null); }}>Cancel</GlassButton>
                 </div>
               </GlassCard>
             </motion.div>

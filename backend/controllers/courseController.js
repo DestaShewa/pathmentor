@@ -6,10 +6,14 @@ const { logActivity } = require("../utils/activityLogger");
 
 
 const createCourse = asyncHandler(async (req, res)=> {
+  const { title, description, category } = req.body;
+  if (!title) return res.status(400).json({ success: false, message: "Course title is required" });
+  if (!category) return res.status(400).json({ success: false, message: "Course category is required" });
+
   const course = new Course ({
-    title: req.body.title,
-    description: req.body.description,
-    category: req.body.category,
+    title: title,
+    description: description,
+    category: category,
     createdBy: req.user._id,
     instructor: req.body.instructorId || undefined,
   });
@@ -224,7 +228,12 @@ const adminUpdateCourse = asyncHandler(async (req, res) => {
 
 // GET /api/courses - Get all available courses for students
 const getAllCourses = asyncHandler(async (req, res) => {
-  const courses = await Course.find()
+  // Only show courses that were created by an admin account
+  const User = require("../models/User");
+  const admins = await User.find({ role: "admin" }).select("_id");
+  const adminIds = admins.map((a) => a._id);
+
+  const courses = await Course.find({ createdBy: { $in: adminIds } })
     .populate("instructor", "name email learningProfile")
     .sort({ createdAt: -1 })
     .lean();

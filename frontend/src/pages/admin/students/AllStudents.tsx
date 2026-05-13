@@ -45,6 +45,18 @@ const AllStudents = () => {
 
   const buildStudentId = (id: string) => (id ? `STU${id.slice(-6).toUpperCase()}` : "N/A");
 
+  const normalizeMentor = (m: any) => {
+    if (!m) return null;
+    // If backend returns only an id string
+    if (typeof m === "string") return { _id: m, name: "Mentor" };
+    // If it's an object but missing name, try to pull from learningProfile
+    if (typeof m === "object") {
+      const name = m.name || m.fullName || (m.learningProfile?.name) || "Mentor";
+      return { ...m, name };
+    }
+    return null;
+  };
+
   const fetchStudents = async () => {
     setLoading(true);
     setError("");
@@ -291,87 +303,90 @@ const AllStudents = () => {
               ) : students.length === 0 ? (
                 <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400">No students found.</td></tr>
               ) : (
-                students.map((student) => (
-                  <tr key={student._id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
-                          {student.name?.[0]?.toUpperCase() || "S"}
-                        </div>
-                        <div>
-                          <div className="text-white font-medium text-sm">{student.name || "Student"}</div>
-                          <div className="text-slate-500 text-xs">{student.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-slate-400 font-mono text-xs">{buildStudentId(student._id)}</td>
-                    <td className="px-5 py-4">
-                      <div className="text-white text-sm">
-                        {student.learningProfile?.course?.title || student.learningProfile?.skillTrack || "—"}
-                      </div>
-                      <div className="text-slate-500 text-xs">
-                        {student.learningProfile?.courseLevel || student.learningProfile?.experienceLevel || ""}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      {student.assignedMentor ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold shrink-0">
-                            {student.assignedMentor.name?.[0]?.toUpperCase() || "M"}
+                students.map((student) => {
+                  const mentor = normalizeMentor(student.assignedMentor);
+                  return (
+                    <tr key={student._id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
+                            {student.name?.[0]?.toUpperCase() || "S"}
                           </div>
                           <div>
-                            <div className="text-white text-xs font-medium">{student.assignedMentor.name}</div>
-                            <div className="text-slate-500 text-[10px]">{student.assignedMentor.learningProfile?.skillTrack || ""}</div>
+                            <div className="text-white font-medium text-sm">{student.name || "Student"}</div>
+                            <div className="text-slate-500 text-xs">{student.email}</div>
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-slate-500 text-xs">Not assigned</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-slate-400 text-sm">
-                      {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${student.onboardingCompleted
-                        ? "bg-emerald-500/10 text-emerald-400"
-                        : "bg-slate-500/10 text-slate-400"
-                        }`}>
-                        {student.onboardingCompleted ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="relative inline-flex">
-                        <button
-                          onClick={() => setIsActionOpen(isActionOpen === student._id ? null : student._id)}
-                          className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                        >
-                          <MoreHorizontal size={18} />
-                        </button>
-                        {isActionOpen === student._id && (
-                          <div className="absolute right-0 top-full mt-1 w-44 rounded-2xl border border-white/10 bg-slate-900 shadow-2xl z-10 overflow-hidden">
-                            <button onClick={() => openEdit(student)}
-                              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
-                              <Edit3 size={14} /> Edit
-                            </button>
-                            <button onClick={() => handleToggleStatus(student)}
-                              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
-                              <RefreshCw size={14} /> {student.onboardingCompleted ? "Set Inactive" : "Set Active"}
-                            </button>
-                            <button onClick={() => openMentorAssignment(student)}
-                              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
-                              <UserCheck size={14} /> Change Mentor
-                            </button>
-                            <div className="border-t border-white/5" />
-                            <button onClick={() => handleDelete(student._id)}
-                              className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-400 hover:bg-red-500/10">
-                              <Trash2 size={14} /> Delete
-                            </button>
+                      </td>
+                      <td className="px-5 py-4 text-slate-400 font-mono text-xs">{buildStudentId(student._id)}</td>
+                      <td className="px-5 py-4">
+                        <div className="text-white text-sm">
+                          {student.learningProfile?.course?.title || student.learningProfile?.skillTrack || "—"}
+                        </div>
+                        <div className="text-slate-500 text-xs">
+                          {student.learningProfile?.courseLevel || student.learningProfile?.experienceLevel || ""}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        {mentor ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold shrink-0">
+                              {mentor.name?.[0]?.toUpperCase() || "M"}
+                            </div>
+                            <div>
+                              <div className="text-white text-xs font-medium">{mentor.name}</div>
+                              <div className="text-slate-500 text-[10px]">{mentor.learningProfile?.skillTrack || ""}</div>
+                            </div>
                           </div>
+                        ) : (
+                          <span className="text-slate-500 text-xs">Not assigned</span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-5 py-4 text-slate-400 text-sm">
+                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${student.onboardingCompleted
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "bg-slate-500/10 text-slate-400"
+                          }`}>
+                          {student.onboardingCompleted ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="relative inline-flex">
+                          <button
+                            onClick={() => setIsActionOpen(isActionOpen === student._id ? null : student._id)}
+                            className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                          {isActionOpen === student._id && (
+                            <div className="absolute right-0 top-full mt-1 w-44 rounded-2xl border border-white/10 bg-slate-900 shadow-2xl z-10 overflow-hidden">
+                              <button onClick={() => openEdit(student)}
+                                className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
+                                <Edit3 size={14} /> Edit
+                              </button>
+                              <button onClick={() => handleToggleStatus(student)}
+                                className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
+                                <RefreshCw size={14} /> {student.onboardingCompleted ? "Set Inactive" : "Set Active"}
+                              </button>
+                              <button onClick={() => openMentorAssignment(student)}
+                                className="flex items-center gap-2 w-full px-4 py-3 text-sm text-slate-200 hover:bg-white/5">
+                                <UserCheck size={14} /> Change Mentor
+                              </button>
+                              <div className="border-t border-white/5" />
+                              <button onClick={() => handleDelete(student._id)}
+                                className="flex items-center gap-2 w-full px-4 py-3 text-sm text-red-400 hover:bg-red-500/10">
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
