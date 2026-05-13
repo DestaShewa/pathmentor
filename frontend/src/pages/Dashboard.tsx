@@ -58,6 +58,7 @@ const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assignedMentor, setAssignedMentor] = useState<any>(null);
+  
 
   // Real course progress state
   const [courseProgress, setCourseProgress] = useState<{
@@ -89,12 +90,12 @@ const Dashboard = () => {
           experience_level: userData.learningProfile.experienceLevel || "",
           persona_type: userData.learningProfile.persona,
           starting_stage: userData.learningProfile.experienceLevel || "Beginner",
-          lesson_length: userData.learningProfile.commitmentTime || "1h",
+          lesson_length: (userData.learningProfile.commitmentTime || "1h").replace(/_/g, " "),
           content_priority: "Mixed",
           project_recommendation: "",
           commitment_time: userData.learningProfile.commitmentTime || "1h",
           learning_goal: userData.learningProfile.learningGoal || "",
-          learning_style: userData.learningProfile.learningStyle || "Visual",
+          learning_style:(userData.learningProfile.learningStyle || "Visual").replace(/_/g, " "),
         });
       }
 
@@ -203,6 +204,7 @@ const Dashboard = () => {
           if (view === "settings") { navigate("/settings"); return; }
           if (view === "projects") { navigate("/projects"); return; }
           if (view === "progress") { navigate("/progress"); return; }
+          if (view === "socialchat") { navigate("/social-chat"); return; }
           // In-page views (dashboard)
           setActiveView(view);
         }}

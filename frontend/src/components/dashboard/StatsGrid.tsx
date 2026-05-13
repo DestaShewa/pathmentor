@@ -52,7 +52,7 @@ export const StatsGrid = ({
     {
       icon: Target,
       label: "Style",
-      value: learningStyle.split(" ")[0],
+      value: learningStyle,
       color: "text-teal",
       bgColor: "bg-teal/20",
     },
@@ -81,7 +81,7 @@ export const StatsGrid = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.4, delay: index * 0.08 }}
           whileHover={{ y: -5, scale: 1.02 }}
-          className="glass-premium p-4 rounded-2xl cursor-pointer group"
+          className="glass-premium p-4 rounded-2xl cursor-pointer group min-h-[170px] flex flex-col"
         >
           <motion.div
             className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3", stat.bgColor)}
@@ -89,7 +89,7 @@ export const StatsGrid = ({
           >
             <stat.icon className={cn("w-5 h-5", stat.color)} />
           </motion.div>
-          <div className="text-2xl font-bold mb-1 group-hover:text-gradient transition-all">
+          <div className="text-xl font-bold mb-1 group-hover:text-gradient transition-all break-words whitespace-normal leading-tight">
             {stat.value}
           </div>
           <div className="text-xs text-muted-foreground">{stat.label}</div>
