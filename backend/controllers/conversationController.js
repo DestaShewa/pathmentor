@@ -45,7 +45,7 @@ exports.getConversations = async (req, res) => {
       const assignedStudents = await User.find({ assignedMentor: userId, role: "student" })
         .select("name email avatar role learningProfile lastSeen isOnline");
 
-      const existingParticipantIds = new Set(formatted.map(c => c.participant?._id.toString()));
+      const existingParticipantIds = new Set(formatted.filter(c => c.participant).map(c => c.participant._id.toString()));
 
       for (const student of assignedStudents) {
         if (!existingParticipantIds.has(student._id.toString())) {
