@@ -221,7 +221,7 @@ const MentorPendingDashboard = () => {
       <DashboardTopNav
         userName={mentor?.name || "Mentor"}
         userEmail={mentor?.email || "mentor@email.com"}
-        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        onMenuToggle={() => {}}
         onSignOut={logout}
       />
 
