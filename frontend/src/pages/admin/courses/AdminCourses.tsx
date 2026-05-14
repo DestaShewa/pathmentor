@@ -5,6 +5,7 @@ import api from "../../../services/api";
 const AdminCourses = () => {
   const [courses, setCourses] = useState<any[]>([]);
   const [mentors, setMentors] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [courseTitle, setCourseTitle] = useState("");
   const [courseDescription, setCourseDescription] = useState("");
@@ -67,6 +68,7 @@ const AdminCourses = () => {
 
   useEffect(() => {
     fetchMentors();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -80,6 +82,17 @@ const AdminCourses = () => {
     } catch (err: any) {
       console.error("Failed to load mentors", err);
       setMentors([]);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get("/admin/categories");
+      const categoryList = res.data.data || res.data || [];
+      setCategories(categoryList.map((cat: any) => cat.name));
+    } catch (err: any) {
+      console.error("Failed to load categories", err);
+      setCategories([]);
     }
   };
 
@@ -237,16 +250,21 @@ const AdminCourses = () => {
               </option>
             ))}
           </select>
-          <input
+          <select
             value={categoryFilter}
             onChange={(event) => {
               setCategoryFilter(event.target.value);
               setPage(1);
             }}
-            type="text"
-            placeholder="Filter by category"
             className="rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-          />
+          >
+            <option value="">All categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => {
@@ -300,13 +318,18 @@ const AdminCourses = () => {
               </label>
               <label className="space-y-2 text-sm text-slate-200">
                 Category
-                <input
+                <select
                   value={courseCategory}
                   onChange={(event) => setCourseCategory(event.target.value)}
-                  type="text"
-                  placeholder="Web Development"
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                />
+                >
+                  <option value="">Select a category</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm text-slate-200">
                 Assign Mentor

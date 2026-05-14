@@ -57,95 +57,194 @@ const StudentReports = () => {
     if (!ctx) return;
 
     const W = canvas.width = canvas.parentElement?.clientWidth || 600;
-    const H = canvas.height = 180;
+    const H = canvas.height = 220;
     const chartData = data.newStudentsChart;
     const maxVal = Math.max(...chartData.map(d => d.count), 1);
-    const padL = 30, padB = 30, padT = 10, padR = 10;
+    const padL = 40, padB = 30, padT = 15, padR = 15;
     const chartW = W - padL - padR;
     const chartH = H - padT - padB;
 
     ctx.clearRect(0, 0, W, H);
 
-    // Grid lines
-    for (let i = 0; i <= 4; i++) {
-      const y = padT + chartH - (i / 4) * chartH;
+    // Grid lines & Y-axis labels
+    for (let i = 0; i <= 5; i++) {
+      const y = padT + chartH - (i / 5) * chartH;
       ctx.strokeStyle = "rgba(255,255,255,0.05)";
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
       ctx.fillStyle = "rgba(148,163,184,0.6)";
-      ctx.font = "10px Inter";
+      ctx.font = "9px Inter";
       ctx.textAlign = "right";
-      ctx.fillText(String(Math.round((maxVal / 4) * i)), padL - 4, y + 3);
+      ctx.fillText(String(Math.round((maxVal / 5) * i)), padL - 6, y + 3);
     }
 
-    const pts = chartData.map((d, i) => ({
-      x: padL + (i / (chartData.length - 1)) * chartW,
-      y: padT + chartH - (d.count / maxVal) * chartH
-    }));
+    // Draw multiple data points if available
+    const pointsCount = chartData.length;
+    const pointSpacing = pointsCount > 1 ? chartW / (pointsCount - 1) : 0;
 
-    // Fill
-    const grad = ctx.createLinearGradient(0, padT, 0, padT + chartH);
-    grad.addColorStop(0, "rgba(59,130,246,0.3)");
-    grad.addColorStop(1, "rgba(59,130,246,0)");
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, padT + chartH);
-    pts.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.lineTo(pts[pts.length - 1].x, padT + chartH);
-    ctx.fillStyle = grad; ctx.fill();
+    // Draw bars for better visualization
+    chartData.forEach((d, i) => {
+      const x = padL + i * pointSpacing;
+      const barHeight = (d.count / maxVal) * chartH;
+      const barWidth = Math.max(8, pointSpacing * 0.6);
+      const y = padT + chartH - barHeight;
 
-    // Line
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    pts.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 2.5; ctx.stroke();
+      // Gradient fill for bars
+      const barGrad = ctx.createLinearGradient(0, y, 0, padT + chartH);
+      barGrad.addColorStop(0, "rgba(59,130,246,0.8)");
+      barGrad.addColorStop(1, "rgba(59,130,246,0.3)");
+      
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+      
+      // Bar border
+      ctx.strokeStyle = "#3b82f6";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - barWidth / 2, y, barWidth, barHeight);
 
-    // Dots
-    pts.forEach(p => {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "#3b82f6"; ctx.fill();
-      ctx.strokeStyle = "#020617"; ctx.lineWidth = 2; ctx.stroke();
+      // Value label on top of bar
+      if (d.count > 0) {
+        ctx.fillStyle = "#93c5fd";
+        ctx.font = "bold 8px Inter";
+        ctx.textAlign = "center";
+        ctx.fillText(String(d.count), x, y - 4);
+      }
     });
 
     // X labels
-    ctx.fillStyle = "rgba(148,163,184,0.7)";
-    ctx.font = "10px Inter";
+    ctx.fillStyle = "rgba(148,163,184,0.8)";
+    ctx.font = "9px Inter";
     ctx.textAlign = "center";
     chartData.forEach((d, i) => {
-      const x = padL + (i / (chartData.length - 1)) * chartW;
-      ctx.fillText(d.label, x, H - 6);
+      const x = padL + i * pointSpacing;
+      ctx.save();
+      ctx.translate(x, H - 8);
+      ctx.rotate(-Math.PI / 6);
+      ctx.fillText(d.label, 0, 0);
+      ctx.restore();
     });
+
+    // Y-axis label
+    ctx.save();
+    ctx.translate(8, padT + chartH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = "rgba(148,163,184,0.6)";
+    ctx.font = "9px Inter";
+    ctx.textAlign = "center";
+    ctx.fillText("New Registrations", 0, 0);
+    ctx.restore();
   };
 
   const handleExportCSV = () => {
     if (!data) return;
-    const rows = [
-      ["Metric", "Value"],
-      ["Total Students", data.stats.totalStudents],
-      ["Active Students", data.stats.activeStudents],
-      ["Total Courses", data.stats.totalCourses],
-      ["Total Lessons", data.stats.totalLessons],
-      ["Total XP Earned", data.stats.totalXP],
-      ["Completion Rate", `${data.stats.completionRate}%`],
-      ["Average Quiz Score", `${data.stats.avgScore}%`],
-      ["Total Achievements", data.stats.totalAchievements],
-      [],
-      ["Top Courses", "Enrollments"],
-      ...data.topCourses.map(c => [c.title, c.enrollments]),
-      [],
-      ["Skill Track", "Students"],
-      ...data.trackDistribution.map(t => [t.track, t.count]),
-      [],
-      ["New Students Chart", `range=${range}`],
-      ["Label", "Count"],
-      ...data.newStudentsChart.map(d => [d.label, d.count]),
-    ];
-    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const timestamp = new Date().toISOString();
+    const reportDate = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    
+    // Map range to readable format
+    const rangeLabel = {
+      daily: "Last 24 Hours",
+      weekly: "Last 7 Days",
+      monthly: "Last 30 Days",
+      yearly: "Last 12 Months"
+    }[range];
+
+    const rows: (string | number)[][] = [];
+    
+    // Report Header
+    rows.push(["PATHMENTOR ANALYTICS & REPORTS"]);
+    rows.push(["Generated", timestamp]);
+    rows.push(["Report Date", reportDate]);
+    rows.push(["Time Period", rangeLabel]);
+    rows.push([]);
+
+    // Platform Statistics Section
+    rows.push(["=== PLATFORM STATISTICS ==="]);
+    rows.push(["Metric", "Value"]);
+    rows.push(["Total Students", data.stats.totalStudents]);
+    rows.push(["Active Students (Onboarded)", data.stats.activeStudents]);
+    rows.push(["Inactive Students", data.stats.totalStudents - data.stats.activeStudents]);
+    rows.push(["Active Rate (%)", Math.round((data.stats.activeStudents / Math.max(data.stats.totalStudents, 1)) * 100)]);
+    rows.push([]);
+    rows.push(["Total Courses", data.stats.totalCourses]);
+    rows.push(["Total Lessons", data.stats.totalLessons]);
+    rows.push(["Average Lessons per Course", Math.round(data.stats.totalLessons / Math.max(data.stats.totalCourses, 1))]);
+    rows.push([]);
+    rows.push(["Completion Rate (%)", data.stats.completionRate]);
+    rows.push(["Average Quiz Score (%)", data.stats.avgScore]);
+    rows.push(["Total Achievements Earned", data.stats.totalAchievements]);
+    rows.push(["Total XP Earned by All Students", data.stats.totalXP]);
+    rows.push(["Average XP per Student", Math.round(data.stats.totalXP / Math.max(data.stats.totalStudents, 1))]);
+    rows.push([]);
+
+    // Top Courses Section
+    rows.push(["=== TOP ENROLLED COURSES ==="]);
+    rows.push(["Rank", "Course Title", "Category", "Enrollments", "% of Total"]);
+    const totalEnrollments = data.topCourses.reduce((s, c) => s + c.enrollments, 0);
+    data.topCourses.forEach((course, idx) => {
+      const share = totalEnrollments > 0 ? Math.round((course.enrollments / totalEnrollments) * 100) : 0;
+      rows.push([idx + 1, course.title, course.category || "Uncategorized", course.enrollments, share]);
+    });
+    rows.push([]);
+
+    // Skill Track Distribution Section
+    rows.push(["=== SKILL TRACK DISTRIBUTION ==="]);
+    rows.push(["Track Name", "Student Count", "% of Total"]);
+    const totalStudentsInTracks = data.trackDistribution.reduce((s, t) => s + t.count, 0);
+    data.trackDistribution.forEach(track => {
+      const pct = totalStudentsInTracks > 0 ? Math.round((track.count / totalStudentsInTracks) * 100) : 0;
+      rows.push([track.track, track.count, pct]);
+    });
+    rows.push([]);
+
+    // Timeline Data Section
+    rows.push([`=== NEW STUDENTS TIMELINE (${rangeLabel}) ===`]);
+    rows.push(["Date/Period", "New Registrations", "Cumulative Trend"]);
+    let cumulative = 0;
+    data.newStudentsChart.forEach(entry => {
+      cumulative += entry.count;
+      rows.push([entry.label, entry.count, cumulative]);
+    });
+    rows.push([]);
+    rows.push(["Total New Students in Period", data.newStudentsChart.reduce((s, d) => s + d.count, 0)]);
+    rows.push([]);
+
+    // Summary Stats Section
+    rows.push(["=== SUMMARY HEALTH METRICS ==="]);
+    rows.push(["Metric", "Status", "Threshold"]);
+    rows.push([
+      "Quiz Performance",
+      data.stats.avgScore >= 70 ? "Excellent" : data.stats.avgScore >= 50 ? "Good" : "Needs Improvement",
+      ">= 70% is Excellent"
+    ]);
+    rows.push([
+      "Course Completion",
+      data.stats.completionRate >= 60 ? "Excellent" : data.stats.completionRate >= 30 ? "Good" : "Needs Improvement",
+      ">= 60% is Excellent"
+    ]);
+    rows.push([
+      "Student Engagement",
+      (data.stats.activeStudents / Math.max(data.stats.totalStudents, 1)) >= 0.6 ? "Excellent" : "Needs Improvement",
+      ">= 60% is Excellent"
+    ]);
+    rows.push([]);
+
+    // Footer
+    rows.push(["Report Generated by PathMentor Analytics System"]);
+    rows.push(["For more details, visit the admin dashboard"]);
+
+    // Convert to CSV format
+    const csv = rows.map(r => r.map(c => {
+      const val = String(c);
+      const needsQuotes = val.includes(",") || val.includes('"') || val.includes("\n");
+      return needsQuotes ? `"${val.replace(/"/g, '""')}"` : val;
+    }).join(",")).join("\n");
+
+    // Download
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `PathMentor_Report_${range}_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `PathMentor_Report_${range}_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
     URL.revokeObjectURL(url);
   };
 
@@ -220,9 +319,12 @@ const StudentReports = () => {
         {/* New students chart */}
         <div className="lg:col-span-2 bg-white/[0.02] border border-white/10 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <TrendingUp size={16} className="text-blue-400" /> New Students — {range === "daily" ? "Last 24 Hours" : range === "monthly" ? "Last 30 Days" : range === "yearly" ? "Last 12 Months" : "Last 7 Days"}
-            </h3>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <TrendingUp size={16} className="text-blue-400" /> Registration Timeline
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">New student registrations — {range === "daily" ? "Last 24 Hours" : range === "monthly" ? "Last 30 Days" : range === "yearly" ? "Last 12 Months" : "Last 7 Days"}</p>
+            </div>
             <div className="flex items-center gap-2">
               <select value={range} onChange={e => setRange(e.target.value as any)} className="rounded-xl bg-white/5 border border-white/10 text-sm text-white px-3 py-2">
                 <option value="daily">Daily (24h)</option>
@@ -235,10 +337,30 @@ const StudentReports = () => {
           <div className="w-full">
             <canvas ref={canvasRef} className="w-full" />
           </div>
-          <div className="flex justify-between mt-2 text-xs text-slate-600">
-            {newStudentsChart.map((d, i) => (
-              <span key={i}>{d.count > 0 && <span className="text-blue-400 font-bold">+{d.count}</span>}</span>
-            ))}
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="bg-white/5 rounded-xl p-3">
+              <p className="text-slate-500 text-xs uppercase tracking-wider font-bold">Total New</p>
+              <p className="text-lg font-bold text-blue-400 mt-1">
+                {newStudentsChart.reduce((s, d) => s + d.count, 0)}
+              </p>
+              <p className="text-xs text-slate-600 mt-1">registrations this period</p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-3">
+              <p className="text-slate-500 text-xs uppercase tracking-wider font-bold">Peak Day</p>
+              <p className="text-lg font-bold text-emerald-400 mt-1">
+                {Math.max(...newStudentsChart.map(d => d.count), 0)}
+              </p>
+              <p className="text-xs text-slate-600 mt-1">highest daily registrations</p>
+            </div>
+            <div className="bg-white/5 rounded-xl p-3">
+              <p className="text-slate-500 text-xs uppercase tracking-wider font-bold">Average</p>
+              <p className="text-lg font-bold text-purple-400 mt-1">
+                {newStudentsChart.length > 0 
+                  ? Math.round(newStudentsChart.reduce((s, d) => s + d.count, 0) / newStudentsChart.length)
+                  : 0}
+              </p>
+              <p className="text-xs text-slate-600 mt-1">daily average</p>
+            </div>
           </div>
         </div>
 
