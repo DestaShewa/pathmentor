@@ -56,9 +56,13 @@ class AIService {
         }
     }
 
-    async analyzeSkillGap(scores) {
+    async analyzeSkillGap(data) {
         try {
-            const response = await axios.post(`${AI_SERVICE_URL}/skill-gap`, { scores });
+            // If data is already the new progress structure, send it directly
+            // Otherwise wrap it in 'scores' for backward compatibility with the microservice legacy logic
+            const payload = (data.lessonCount !== undefined) ? data : { scores: data };
+            
+            const response = await axios.post(`${AI_SERVICE_URL}/skill-gap`, payload);
             return response.data;
         } catch (error) {
             this._handleError(error, 'Skill Gap Analysis');
@@ -74,12 +78,30 @@ class AIService {
         }
     }
 
+    async evaluateProject(title, description) {
+        try {
+            const response = await axios.post(`${AI_SERVICE_URL}/project-evaluate`, { title, description });
+            return response.data;
+        } catch (error) {
+            this._handleError(error, 'Project Evaluation');
+        }
+    }
+
     async aiDetector(text) {
         try {
             const response = await axios.post(`${AI_SERVICE_URL}/ai-detector`, { text });
             return response.data;
         } catch (error) {
             this._handleError(error, 'AI Detection');
+        }
+    }
+
+    async generatePersona(userData) {
+        try {
+            const response = await axios.post(`${AI_SERVICE_URL}/persona`, userData);
+            return response.data;
+        } catch (error) {
+            this._handleError(error, 'Persona Generation');
         }
     }
 

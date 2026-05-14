@@ -540,9 +540,23 @@ router.put("/projects/:id/grade/:studentId", guard, authorize("mentor"), async (
     const sub = project.submissions.find(s => s.student.toString() === req.params.studentId);
     if (!sub) return res.status(404).json({ message: "Submission not found" });
 
-    if (grade) sub.grade = grade;
+    // New grading logic: combine AI scores with mentor score
+    if (grade !== undefined) {
+      // Support for numeric manual grading (0 - 50)
+      const numericGrade = parseFloat(grade);
+      if (!isNaN(numericGrade)) {
+        sub.mentorScore = Math.max(0, Math.min(50, numericGrade));
+      }
+      sub.grade = grade; // keep for UI compatibility
+    }
+
     if (feedback) sub.feedback = feedback;
     if (status) sub.status = status;
+
+    // Calculate final score: AI (50%) + Mentor (50%)
+    // AI Understanding (20) + AI Authenticity (30) + Mentor (50) = 100
+    sub.finalScore = (sub.aiUnderstandingScore || 0) + (sub.aiAuthenticityScore || 0) + (sub.mentorScore || 0);
+    
     await project.save();
 
     // Notify student about grading

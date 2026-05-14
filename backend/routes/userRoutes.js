@@ -8,6 +8,11 @@ const User = require("../models/User");
 
 router.get("/profile",         guard, getMyProfile);
 router.put("/profile",         guard, updateMyProfile);
+router.put("/profile/persona", guard, (req, res, next) => {
+  // We'll define updateLearningProfile in userController
+  const { updateLearningProfile } = require("../controllers/userController");
+  return updateLearningProfile(req, res, next);
+});
 router.put("/change-password", guard, changePassword);
 router.post("/onboarding",     guard, upload.array("documents", 5), completeProfile);
 
@@ -87,15 +92,46 @@ router.post("/my-projects/:id/submit", guard, async (req, res) => {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
+    // AI Evaluation
+    const aiService = require("../services/aiService");
+    let aiEval = {
+      understandingScore: 0,
+      understandingFeedback: "AI evaluation unavailable",
+      aiProbability: 0,
+      authenticityFeedback: "AI evaluation unavailable",
+      humanConfidenceScore: 0,
+      recommendations: []
+    };
+
+    try {
+      const evalRes = await aiService.evaluateProject(project.title, description);
+      if (evalRes.success && evalRes.evaluation) {
+        aiEval = evalRes.evaluation;
+      }
+    } catch (err) {
+      console.error("AI Evaluation failed during submission:", err.message);
+    }
+
     const alreadySubmitted = project.submissions.find(
       s => s.student.toString() === req.user._id.toString()
     );
+
+    const submissionData = {
+      description,
+      link,
+      submittedAt: new Date(),
+      aiUnderstandingScore: aiEval.understandingScore,
+      aiAuthenticityScore: Math.round(aiEval.humanConfidenceScore * 0.3), // 30% weight
+      aiProbability: aiEval.aiProbability,
+      aiFeedback: `${aiEval.understandingFeedback}\n\n${aiEval.authenticityFeedback}`,
+      aiRecommendations: aiEval.recommendations,
+      status: "submitted"
+    };
+
     if (alreadySubmitted) {
-      alreadySubmitted.description = description || alreadySubmitted.description;
-      alreadySubmitted.link        = link || alreadySubmitted.link;
-      alreadySubmitted.submittedAt = new Date();
+      Object.assign(alreadySubmitted, submissionData);
     } else {
-      project.submissions.push({ student: req.user._id, description, link });
+      project.submissions.push({ student: req.user._id, ...submissionData });
     }
 
     await project.save();
@@ -106,12 +142,12 @@ router.post("/my-projects/:id/submit", guard, async (req, res) => {
       userId: project.mentor,
       type: "info",
       title: "Project Submitted",
-      message: `${req.user.name} submitted the project "${project.title}"`,
+      message: `${req.user.name} submitted the project "${project.title}" (AI Analyzed)`,
       link: "/mentor/projects",
       icon: "file-text"
     }).catch(err => console.error("Failed to notify mentor:", err));
 
-    res.json({ success: true, message: "Project submitted!" });
+    res.json({ success: true, message: "Project submitted and analyzed by AI!" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

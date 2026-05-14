@@ -166,8 +166,22 @@ const ProgressPage = () => {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        <div className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed max-h-64 overflow-y-auto pr-2 custom-[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
-                                            {skillGapAnalysis.insights}
+                                        <div className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed max-h-64 overflow-y-auto pr-2">
+                                            {skillGapAnalysis?.analysis?.insightsString || 
+                                              (typeof skillGapAnalysis?.analysis?.insights === 'string' ? 
+                                                skillGapAnalysis.analysis.insights : 
+                                                skillGapAnalysis?.analysis?.insights?.performanceGap || "No insights available")}
+                                            
+                                            {skillGapAnalysis?.analysis?.recommendations && (
+                                                <div className="mt-4 pt-4 border-t border-white/10">
+                                                    <p className="text-primary font-bold text-xs uppercase mb-2">Recommendations:</p>
+                                                    <ul className="list-disc pl-4 space-y-1">
+                                                        {skillGapAnalysis.analysis.recommendations.map((r: string, i: number) => (
+                                                            <li key={i} className="text-xs opacity-80">{r}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}

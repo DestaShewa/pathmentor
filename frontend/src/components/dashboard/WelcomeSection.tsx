@@ -5,10 +5,13 @@ import { PersonaType, PERSONAS } from "@/lib/registrationTypes";
 interface WelcomeSectionProps {
   userName: string;
   personaType?: PersonaType;
+  customPersona?: string;
 }
 
-export const WelcomeSection = ({ userName, personaType }: WelcomeSectionProps) => {
+export const WelcomeSection = ({ userName, personaType, customPersona }: WelcomeSectionProps) => {
   const persona = personaType ? PERSONAS[personaType] : null;
+  const displayPersonaName = customPersona || persona?.name;
+  const displayEmoji = persona?.emoji || "✨";
 
   return (
     <motion.div
@@ -39,7 +42,7 @@ export const WelcomeSection = ({ userName, personaType }: WelcomeSectionProps) =
             <span className="text-gradient">{userName}</span> 👋
           </motion.h1>
 
-          {persona ? (
+          {displayPersonaName ? (
             <motion.div
               className="flex items-center gap-3"
               initial={{ opacity: 0, y: 10 }}
@@ -53,8 +56,8 @@ export const WelcomeSection = ({ userName, personaType }: WelcomeSectionProps) =
                 className="persona-badge flex items-center gap-2"
                 whileHover={{ scale: 1.05 }}
               >
-                <span className="text-lg">{persona.emoji}</span>
-                <span className="font-semibold">{persona.name}</span>
+                <span className="text-lg">{displayEmoji}</span>
+                <span className="font-semibold">{displayPersonaName}</span>
               </motion.div>
               <span className="text-muted-foreground">today.</span>
             </motion.div>

@@ -90,4 +90,14 @@ router.post('/ai-detector', guard, async (req, res) => {
     }
 });
 
+// Persona proxy
+router.post('/persona', guard, async (req, res) => {
+    try {
+        const result = await aiService.generatePersona(req.body);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

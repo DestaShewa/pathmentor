@@ -9,7 +9,7 @@ const app = express();
 // Rate limiting: Max 50 requests per 15 minutes per IP
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 50,
+    max: 500, // Increased for stability during development
     message: { error: "Too many requests. Please try again after 15 minutes." },
     standardHeaders: true,
     legacyHeaders: false,

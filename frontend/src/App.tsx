@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Register from "./pages/Register";
 import Roadmap from "./pages/Roadmap";
 import Dashboard from "./pages/Dashboard";
+import OnboardingPersona from "./pages/OnboardingPersona";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
 import Lessons from "./pages/Lessons";
@@ -106,6 +107,7 @@ const App = () => (
             {/* STUDENT */}
             <Route path="/roadmap" element={<Roadmap />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/onboarding-persona" element={<OnboardingPersona />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/courses" element={<BrowseCourses />} />

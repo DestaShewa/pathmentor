@@ -11,11 +11,13 @@ const {
   getUserStreak,
   getDailyMotivation,
   getWeeklyReport,
-  getSmartReminder
+  getSmartReminder,
+  getAISkillGap
 } = require("../controllers/progressController");
 
 router.post("/lesson/:id/complete", guard, authorize("student"), completeLesson);
 router.post("/level/score", guard, authorize("student"), updateLevelScore);
+router.get("/skill-gap", guard, authorize("student"), getAISkillGap);
 router.get("/course/:courseId", guard, getCourseProgress);
 router.get("/xp", guard, getUserXP);
 router.get("/achievements", guard, getUserAchievements);

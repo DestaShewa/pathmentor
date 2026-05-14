@@ -39,10 +39,18 @@ export const aiService = {
     },
 
     /**
-     * Analyze skill gap based on assessment scores
+     * Analyze skill gap based on assessment scores (Legacy)
      */
     analyzeSkillGap: async (scores: any) => {
         const response = await api.post("/ai/skill-gap", { scores });
+        return response.data;
+    },
+
+    /**
+     * Get AI Skill Gap analysis based on student progress (New)
+     */
+    getProgressSkillGap: async () => {
+        const response = await api.get("/progress/skill-gap");
         return response.data;
     },
 
@@ -59,6 +67,22 @@ export const aiService = {
      */
     aiDetector: async (text: string) => {
         const response = await api.post("/ai/ai-detector", { text });
+        return response.data;
+    },
+
+    /**
+     * Evaluate a project submission (Understanding + AI Detection)
+     */
+    evaluateProject: async (title: string, description: string) => {
+        const response = await api.post("/ai/project-evaluate", { title, description });
+        return response.data;
+    },
+
+    /**
+     * Generate a personalized learning persona
+     */
+    generatePersona: async (userData: any) => {
+        const response = await api.post("/ai/persona", userData);
         return response.data;
     },
 

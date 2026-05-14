@@ -39,6 +39,26 @@ const userSchema=new mongoose.Schema(
             learningGoal: String,
             personalGoal: String,
             persona: String,
+            tagline: String,
+            description: String,
+            keywords: [String],
+            summary: String,
+            roadmap: {
+              startingStage: String,
+              lessonFormat: String,
+              contentStyle: String,
+              dailyPlan: String,
+              projectFocus: String
+            },
+            firstLessons: [
+              {
+                title: String,
+                time: String,
+                matchScore: Number
+              }
+            ],
+            learningPath: [String], // for backward compatibility or future use
+            projects: mongoose.Schema.Types.Mixed, // Can be old array of strings or new array of objects
             strengths: [String],
             recommendation: String,
             course: {

@@ -5,6 +5,8 @@ const skillGapService = require('../services/skillGapService');
 const similarityService = require('../services/similarityService');
 const aiDetectorService = require('../services/aiDetectorService');
 const quizService = require('../services/quizService');
+const projectEvaluationService = require('../services/projectEvaluationService');
+const personaService = require('../services/personaService');
 const pdfParse = require('pdf-parse');
 
 exports.chat = async (req, res) => {
@@ -67,13 +69,55 @@ exports.recommend = async (req, res) => {
 
 exports.skillGap = async (req, res) => {
     try {
-        const { scores } = req.body;
-        if (!scores) return res.status(400).json({ error: 'Scores are required' });
-        const analysis = await skillGapService.analyzeSkillGap(scores);
+        console.log('[SkillGap] Received request body:', JSON.stringify(req.body));
+        let progressData = req.body;
+
+        // Backward compatibility for legacy "scores" input from ProgressPage or old backend calls
+        if (progressData.scores && !progressData.lessonCount) {
+            console.log('[SkillGap] Detected legacy scores format. Converting...');
+            const scores = progressData.scores;
+            progressData = {
+                lessonCount: scores.lessonCount || 0,
+                xp: scores.xp || 0,
+                completion: scores.completion || scores["Overall Progress"] || scores["Progress"] || 0,
+                studyHours: scores.studyHours || 0,
+                masteryTopics: scores.masteryTopics || Object.keys(scores).filter(k => k !== "Overall Progress")
+            };
+            console.log('[SkillGap] Converted progressData:', JSON.stringify(progressData));
+        }
+
+        if (!progressData.lessonCount && progressData.lessonCount !== 0) {
+            console.error('[SkillGap] Invalid progress data - lessonCount missing');
+            return res.status(400).json({ error: 'Progress data is required' });
+        }
+
+        const analysis = await skillGapService.analyzeSkillGap(progressData);
+        
+        // Ensure we handle different response formats from the service if needed
+        // For ProgressPage.tsx compatibility, we might want to provide a fallback string insights
+        if (analysis && analysis.insights && typeof analysis.insights === 'object') {
+            analysis.insightsString = `${analysis.insights.performanceGap}\n\nStrategy: ${analysis.insights.strategy}`;
+        }
+
+        console.log('[SkillGap] Analysis successful');
         res.json({ analysis });
     } catch (error) {
-        console.error('Skill gap error:', error.message);
-        res.status(500).json({ error: 'Failed to analyze skill gap' });
+        console.error('[SkillGap] Critical error:', error);
+        res.status(500).json({ error: 'Failed to analyze skill gap: ' + error.message });
+    }
+};
+
+exports.evaluateProject = async (req, res) => {
+    try {
+        const { title, description } = req.body;
+        if (!title || !description) {
+            return res.status(400).json({ error: 'Title and description are required' });
+        }
+        const evaluation = await projectEvaluationService.evaluateProject(title, description);
+        res.json({ success: true, evaluation });
+    } catch (error) {
+        console.error('Project evaluation error:', error.message);
+        res.status(500).json({ error: 'Failed to evaluate project: ' + error.message });
     }
 };
 
@@ -110,6 +154,20 @@ exports.generateQuiz = async (req, res) => {
     } catch (error) {
         console.error('Quiz Generation error:', error.message);
         res.status(500).json({ error: 'Failed to generate quiz.' });
+    }
+};
+
+exports.generatePersona = async (req, res) => {
+    try {
+        const userData = req.body;
+        if (!userData.skillTrack || !userData.experienceLevel) {
+            return res.status(400).json({ error: 'Incomplete learning profile data' });
+        }
+        const result = await personaService.generatePersona(userData);
+        res.json({ result });
+    } catch (error) {
+        console.error('Persona Generation error:', error.message);
+        res.status(500).json({ error: error.message });
     }
 };
 

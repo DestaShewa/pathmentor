@@ -22,9 +22,182 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import {
   ArrowRight, Sparkles, CheckCircle2, Moon, Sun,
   Bell, Shield, Monitor, PlayCircle, BookOpen, Clock, Star,
-  User, Calendar, MessageSquare, Loader2
+  User, Calendar, MessageSquare, Loader2, Brain, Trophy, Layers,
+  TrendingUp, AlertTriangle, Lightbulb, Compass, Rocket
 } from "lucide-react";
+import { 
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
+  CartesianGrid, Tooltip, BarChart, Bar, Cell 
+} from "recharts";
 import aiService from "@/services/aiService";
+
+// ─── AI SKILL GAP ANALYSIS COMPONENT ──────────────────────────────────────────
+const SkillGapAnalysis = ({ data, onReanalyze, isLoading }: { data: any, onReanalyze: () => void, isLoading: boolean }) => {
+  if (!data && !isLoading) return null;
+
+  return (
+    <GlassCard className="p-8 border-primary/20 bg-primary/5 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-6 opacity-5">
+        <Brain size={150} className="text-primary" />
+      </div>
+
+      <div className="relative z-10 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter flex items-center gap-2">
+              <Brain className="text-primary" /> AI Skill Gap Analysis
+            </h3>
+            <p className="text-sm text-muted-foreground">Intelligent assessment of your learning progress and weak areas.</p>
+          </div>
+          <GlassButton 
+            variant="primary" 
+            size="sm" 
+            onClick={onReanalyze} 
+            disabled={isLoading}
+            className="shrink-0"
+          >
+            {isLoading ? <Loader2 className="animate-spin mr-2" size={16} /> : <Sparkles className="mr-2" size={16} />}
+            {isLoading ? "Analyzing..." : "Re-analyze Progress"}
+          </GlassButton>
+        </div>
+
+        {isLoading ? (
+          <div className="py-20 text-center space-y-4">
+            <div className="relative w-20 h-20 mx-auto">
+               <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+               <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+               <Brain className="absolute inset-0 m-auto text-primary animate-pulse" size={32} />
+            </div>
+            <p className="text-primary font-bold animate-pulse text-sm">Deeply analyzing your learning patterns...</p>
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Left: Visualization & Stats */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 {[
+                   { label: "XP Earned", value: data.rawStats?.xp || 0, icon: Star, color: "text-amber-400" },
+                   { label: "Lessons", value: data.rawStats?.lessonCount || 0, icon: BookOpen, color: "text-blue-400" },
+                   { label: "Study Time", value: `${data.rawStats?.studyHours || 0}h`, icon: Clock, color: "text-green-400" },
+                   { label: "Completion", value: `${data.rawStats?.completion || 0}%`, icon: TrendingUp, color: "text-primary" },
+                 ].map((stat, i) => (
+                   <div key={i} className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                     <stat.icon className={`${stat.color} mb-2`} size={18} />
+                     <p className="text-xl font-black">{stat.value}</p>
+                     <p className="text-[10px] font-bold uppercase text-muted-foreground">{stat.label}</p>
+                   </div>
+                 ))}
+              </div>
+
+              <div className="h-[250px] w-full bg-white/5 rounded-3xl p-6 border border-white/10">
+                 <h4 className="text-xs font-bold uppercase tracking-widest text-primary mb-4 flex items-center gap-2">
+                   <TrendingUp size={14} /> Performance Insights
+                 </h4>
+                 <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={[
+                      { name: 'Mon', xp: 20 }, { name: 'Tue', xp: 45 }, { name: 'Wed', xp: 30 },
+                      { name: 'Thu', xp: 70 }, { name: 'Fri', xp: 50 }, { name: 'Sat', xp: 90 },
+                      { name: 'Sun', xp: data.rawStats?.xp % 100 || 60 }
+                    ]}>
+                      <defs>
+                        <linearGradient id="colorXp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0D9488" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
+                      <YAxis hide />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                        itemStyle={{ color: '#0D9488' }}
+                      />
+                      <Area type="monotone" dataKey="xp" stroke="#0D9488" fillOpacity={1} fill="url(#colorXp)" strokeWidth={3} />
+                    </AreaChart>
+                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Right: AI Insights */}
+            <div className="space-y-4">
+              <div className="p-5 bg-green-500/10 border border-green-500/20 rounded-2xl">
+                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-green-400 mb-3 flex items-center gap-2">
+                   <CheckCircle2 size={12} /> Key Strengths
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.data?.strengths?.map((s: string, i: number) => (
+                      <li key={i} className="text-xs flex items-start gap-2 opacity-90">
+                        <span className="text-green-400">•</span> {s}
+                      </li>
+                    ))}
+                 </ul>
+              </div>
+
+              <div className="p-5 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-3 flex items-center gap-2">
+                   <AlertTriangle size={12} /> Weak Areas
+                 </h4>
+                 <ul className="space-y-2">
+                    {data.data?.weaknesses?.map((w: string, i: number) => (
+                      <li key={i} className="text-xs flex items-start gap-2 opacity-90">
+                        <span className="text-red-400">•</span> {w}
+                      </li>
+                    ))}
+                 </ul>
+              </div>
+
+              <div className="p-5 bg-primary/10 border border-primary/20 rounded-2xl">
+                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                   <Lightbulb size={12} /> Study Strategy
+                 </h4>
+                 <p className="text-xs leading-relaxed opacity-90 italic">
+                   "{data.data?.insights?.strategy}"
+                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && data && (
+          <div className="pt-6 border-t border-white/10 grid md:grid-cols-2 gap-6">
+             <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Compass size={14} /> Next Topics to Focus
+                </h4>
+                <div className="space-y-3">
+                   {data.data?.nextTopics?.map((topic: any, i: number) => (
+                     <div key={i} className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/5 hover:border-primary/30 transition-colors cursor-pointer group">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary transition-colors">
+                          <Rocket size={14} className="text-primary group-hover:text-black" />
+                        </div>
+                        <div>
+                           <p className="text-xs font-bold">{topic.title}</p>
+                           <p className="text-[10px] text-muted-foreground">{topic.reason}</p>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+             </div>
+
+             <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Sparkles size={14} /> Personalized Advice
+                </h4>
+                <div className="flex flex-col gap-3">
+                   {data.data?.recommendations?.map((rec: string, i: number) => (
+                     <div key={i} className="text-xs p-3 bg-white/5 rounded-xl border border-white/5 relative overflow-hidden">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+                        {rec}
+                     </div>
+                   ))}
+                </div>
+             </div>
+          </div>
+        )}
+      </div>
+    </GlassCard>
+  );
+};
 
 interface UserPreferences {
   skill_track: string;
@@ -68,8 +241,11 @@ const Dashboard = () => {
     xpEarned: number;
   } | null>(null);
   const [streak, setStreak] = useState({ current: 0, longest: 0 });
-  const [aiRecommendation, setAiRecommendation] = useState<string>("");
   const [loadingAi, setLoadingAi] = useState(false);
+  const [skillGapData, setSkillGapData] = useState<any>(null);
+  const [loadingSkillGap, setLoadingSkillGap] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string>("");
+
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -147,6 +323,20 @@ const Dashboard = () => {
     }
   };
 
+  const handleFetchSkillGap = async () => {
+    setLoadingSkillGap(true);
+    try {
+      const res = await aiService.getProgressSkillGap();
+      if (res.success) {
+        setSkillGapData(res);
+      }
+    } catch (err) {
+      console.error("Skill gap analysis failed:", err);
+    } finally {
+      setLoadingSkillGap(false);
+    }
+  };
+
   const handleSignOut = () => {
     localStorage.removeItem("token");
     disconnectSocket();
@@ -218,7 +408,11 @@ const Dashboard = () => {
             {/* --- DASHBOARD VIEW --- */}
             {activeView === "dashboard" && (
               <motion.div key="dash" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <WelcomeSection userName={userName} personaType={preferences?.persona_type} />
+                <WelcomeSection 
+                  userName={userName} 
+                  personaType={user?.learningProfile?.personaType} 
+                  customPersona={user?.learningProfile?.persona}
+                />
 
                 {/* Smart Reminder Banner */}
                 <SmartReminder />
@@ -371,32 +565,174 @@ const Dashboard = () => {
                     )}
                   </GlassCard>
 
-                  {/* ── AI Career Planner ── */}
-                  <GlassCard className="p-6">
-                    <h3 className="font-bold flex items-center gap-2 text-primary mb-4">
-                      <Sparkles size={18} /> AI Career Planner
-                    </h3>
-                    {!aiRecommendation && !loadingAi ? (
-                      <div className={"text-center py-4"}>
-                        <p className="text-sm text-muted-foreground mb-4">Get a personalized learning roadmap and project ideas based on your track.</p>
-                        <GlassButton variant="primary" onClick={handleGetRecommendation}>Generate Recommendations</GlassButton>
+                  {/* ── AI Personalized Roadmap ── */}
+                  <GlassCard className="p-6 border-primary/20 bg-primary/5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+                      <Sparkles size={120} className="text-primary" />
+                    </div>
+                    
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                          <Sparkles size={18} className="text-primary" /> AI Personalized Roadmap
+                        </h3>
+                        {user?.onboardingCompleted && (
+                          <GlassButton 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={() => navigate("/onboarding-persona")}
+                            className="text-[10px] h-7"
+                          >
+                            Reset Roadmap
+                          </GlassButton>
+                        )}
                       </div>
-                    ) : loadingAi ? (
-                      <div className="flex flex-col items-center gap-3 py-6">
-                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Building your dynamic roadmap...</p>
-                      </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap text-sm text-white/90 leading-relaxed max-h-64 overflow-y-auto pr-2 custom-[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
-                        {aiRecommendation}
-                      </div>
-                    )}
+
+                      {user?.onboardingCompleted && user.learningProfile?.persona ? (
+                        <div className="space-y-6">
+                          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-1">Your Learning Persona</p>
+                              <h4 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none">{user.learningProfile.persona}</h4>
+                              <p className="text-primary font-bold text-sm mt-1">{user.learningProfile.tagline || "Visionary Learner"}</p>
+                            </div>
+                            <GlassButton 
+                              variant="primary" 
+                              size="sm" 
+                              onClick={handleGetRecommendation}
+                              disabled={loadingAi}
+                              className="text-[10px] h-8 shrink-0"
+                            >
+                              {loadingAi ? <Loader2 size={12} className="animate-spin mr-2" /> : <Sparkles size={12} className="mr-2" />}
+                              Get Weekly AI Insight
+                            </GlassButton>
+                          </div>
+
+                          <div className="space-y-4">
+                            <p className="text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-3 leading-relaxed">
+                              "{user.learningProfile.recommendation}"
+                            </p>
+                            
+                            {aiRecommendation && (
+                              <motion.div 
+                                initial={{ opacity: 0, x: -10 }} 
+                                animate={{ opacity: 1, x: 0 }}
+                                className="p-4 bg-primary/20 border border-primary/30 rounded-2xl relative overflow-hidden"
+                              >
+                                <div className="absolute top-0 right-0 p-2 opacity-10">
+                                  <Brain size={40} className="text-primary" />
+                                </div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
+                                  <Lightbulb size={12} /> Fresh AI Recommendation
+                                </p>
+                                <p className="text-xs leading-relaxed font-medium">
+                                  {aiRecommendation}
+                                </p>
+                              </motion.div>
+                            )}
+                          </div>
+
+                          <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                <Layers size={12} className="text-primary" /> Roadmap Focus
+                              </p>
+                              <div className="space-y-2">
+                                {user.learningProfile.roadmap && Object.entries(user.learningProfile.roadmap).slice(0, 3).map(([key, value]: [string, any], i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-[11px] bg-white/5 p-2 rounded-xl border border-white/5">
+                                    <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[9px] flex items-center justify-center font-bold">
+                                      {i + 1}
+                                    </span>
+                                    <span className="truncate opacity-80">{value}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="space-y-3">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                <Trophy size={12} className="text-primary" /> Core Projects
+                              </p>
+                              <div className="space-y-2">
+                                {user.learningProfile.projects?.slice(0, 3).map((project: any, i: number) => (
+                                  <div key={i} className="flex items-center gap-2 text-[11px] bg-white/5 p-2 rounded-xl border border-white/5">
+                                    <CheckCircle2 size={10} className="text-primary" />
+                                    <span className="truncate opacity-80">{typeof project === 'string' ? project : project.title}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 flex flex-col gap-3">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                              <BookOpen size={12} /> Top Recommended Lessons
+                            </p>
+                            <div className="space-y-2">
+                               {user.learningProfile.firstLessons?.slice(0, 2).map((lesson: any, i: number) => (
+                                 <div key={i} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate("/lessons")}>
+                                   <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-[10px] font-bold group-hover:bg-primary group-hover:text-black transition-colors">{i+1}</div>
+                                      <p className="text-xs font-medium group-hover:text-primary transition-colors">{lesson.title}</p>
+                                   </div>
+                                   <span className="text-[10px] font-bold text-primary">{lesson.matchScore}% Match</span>
+                                 </div>
+                               ))}
+                            </div>
+                            <GlassButton variant="primary" size="sm" className="w-full mt-1" onClick={() => navigate("/lessons")}>
+                              Start Learning Now
+                            </GlassButton>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 space-y-4">
+                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto border border-dashed border-primary/30">
+                            <Brain className="w-8 h-8 text-primary/40" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="font-bold text-lg">Build Your AI-Powered Roadmap</h4>
+                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                              Take a 2-minute survey about your goals and vision to unlock a perfectly tailored master's path.
+                            </p>
+                          </div>
+                          <GlassButton 
+                            variant="primary" 
+                            glow 
+                            onClick={() => navigate("/onboarding-persona")}
+                            className="px-8"
+                          >
+                            Start Personalization <ArrowRight size={16} className="ml-2" />
+                          </GlassButton>
+                        </div>
+                      )}
+                    </div>
                   </GlassCard>
 
                   <div className="grid lg:grid-cols-2 gap-8">
                     <RoadmapSnapshot currentStage={1} />
                     <SkillGrowthChart />
                   </div>
+
+                  {/* AI Skill Gap Analysis Section */}
+                  <SkillGapAnalysis 
+                    data={skillGapData} 
+                    isLoading={loadingSkillGap} 
+                    onReanalyze={handleFetchSkillGap} 
+                  />
+                  
+                  {!skillGapData && !loadingSkillGap && (
+                    <GlassCard className="p-12 text-center border-dashed border-primary/30 bg-primary/5">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                        <TrendingUp size={32} className="text-primary/60" />
+                      </div>
+                      <h3 className="text-xl font-bold mb-2">Unlock Your Skill Gap Analysis</h3>
+                      <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-8">
+                        Get a deep dive into your learning patterns, missing fundamentals, and personalized growth strategies.
+                      </p>
+                      <GlassButton variant="primary" glow onClick={handleFetchSkillGap}>
+                        Generate Analysis <Sparkles size={16} className="ml-2" />
+                      </GlassButton>
+                    </GlassCard>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -591,3 +927,7 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+function setAiRecommendation(arg0: any) {
+  throw new Error("Function not implemented.");
+}

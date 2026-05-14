@@ -697,6 +697,68 @@ const getSmartReminder = asyncHandler(async (req, res) => {
 
 /*
 ========================================
+AI SKILL GAP ANALYSIS
+GET /api/progress/skill-gap
+========================================
+*/
+const getAISkillGap = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const aiService = require("../services/aiService");
+
+  // 1. Fetch total XP and lessons
+  const progresses = await Progress.find({ user: userId });
+  let totalXP = 0;
+  let totalLessons = 0;
+  let completedLevelCount = 0;
+  let totalLevels = 0;
+  let masteryTopics = [];
+
+  for (const p of progresses) {
+    totalXP += p.xpEarned;
+    for (const lp of p.levelsProgress) {
+      totalLessons += lp.completedLessons.length;
+      totalLevels++;
+      if (lp.isCompleted) {
+        completedLevelCount++;
+        const level = await Level.findById(lp.level).select('title');
+        if (level) masteryTopics.push(level.title);
+      }
+    }
+  }
+
+  // 2. Fetch study time from daily logs
+  const dailyLogs = await DailyProgress.find({ user: userId });
+  let totalSeconds = 0;
+  dailyLogs.forEach(log => {
+    totalSeconds += log.timeSpentSeconds;
+  });
+  const studyHours = Math.round((totalSeconds / 3600) * 10) / 10;
+
+  // 3. Calculate overall completion % across all joined courses
+  const overallCompletion = totalLevels > 0 
+    ? Math.round((completedLevelCount / totalLevels) * 100) 
+    : 0;
+
+  // 4. Send to AI
+  const progressData = {
+    lessonCount: totalLessons,
+    xp: totalXP,
+    completion: overallCompletion,
+    studyHours: studyHours || (totalLessons * 0.5), // fallback
+    masteryTopics: masteryTopics.slice(-5) // Send last 5 mastered topics
+  };
+
+  const analysis = await aiService.analyzeSkillGap(progressData);
+
+  res.json({
+    success: true,
+    data: analysis.analysis, // Nesting fix based on microservice response
+    rawStats: progressData
+  });
+});
+
+/*
+========================================
 EXPORT
 ========================================
 */
@@ -710,5 +772,6 @@ module.exports = {
   getUserStreak,
   getDailyMotivation,
   getWeeklyReport,
-  getSmartReminder
+  getSmartReminder,
+  getAISkillGap
 };

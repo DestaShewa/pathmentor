@@ -1,71 +1,116 @@
 const axios = require('axios');
 
-exports.analyzeSkillGap = async (scores) => {
-    // Rule-based score analysis
-    // Expected: scores = { react: 40, node: 85, python: 30 }
-    const weakAreas = [];
+/**
+ * System prompt for analyzing skill gaps based on user progress.
+ */
+const SYSTEM_PROMPT = `You are an expert AI Learning Architect. 
+Your goal is to perform a deep "Skill Gap Analysis" for a student based on their learning progress data.
 
-    if (scores && typeof scores === 'object') {
-        for (const [skill, score] of Object.entries(scores)) {
-            if (typeof score === 'number' && score < 50) {
-                weakAreas.push(skill);
-            }
+### Input Data:
+- Lessons Completed: Count and titles
+- Total XP: Experience points earned
+- Course Completion%: Current progress
+- Study Time: Total hours invested
+- Mastery Topics: Topics the user performed well in (quizzes/tasks)
+
+### Your Output MUST BE STRICTOR JSON format with these exact keys:
+{
+  "strengths": ["Strengths 1", "Strength 2"],
+  "weaknesses": ["Weakness 1", "Weakness 2"],
+  "recommendations": ["Advice 1", "Advice 2"],
+  "nextTopics": [
+     { "title": "Topic Title", "reason": "Why this topic is next" }
+  ],
+  "insights": {
+     "performanceGap": "Analysis of current vs expected performance",
+     "learningPattern": "Observation about how the user learns",
+     "strategy": "A specific study strategy for the user"
+  }
+}
+
+Do not include any text outside the JSON block. Ensure the response is valid JSON.`;
+
+async function callGroqAPI(progressData) {
+    const userPrompt = `Analyze skill gap for:
+    - Lessons Completed: ${progressData.lessonCount}
+    - XP Earned: ${progressData.xp}
+    - Completion: ${progressData.completion}%
+    - Study Time: ${progressData.studyHours}h
+    - mastery: ${progressData.masteryTopics?.join(', ')}`;
+
+    const response = await axios.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: userPrompt }
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 1024,
+            temperature: 0.7
+        },
+        {
+            headers: {
+                Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            timeout: 30000,
         }
+    );
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Groq returned empty content');
+    return JSON.parse(content);
+}
+
+async function callGeminiAPI(progressData) {
+    const userPrompt = `Analyze skill gap for:
+    - Lessons Completed: ${progressData.lessonCount}
+    - XP Earned: ${progressData.xp}
+    - Completion: ${progressData.completion}%
+    - Study Time: ${progressData.studyHours}h
+    - mastery: ${progressData.masteryTopics?.join(', ')}`;
+
+    const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        {
+            contents: [
+                {
+                    role: 'user',
+                    parts: [{ text: `System Instructions: ${SYSTEM_PROMPT}\n\nUser Data: ${userPrompt}` }]
+                }
+            ],
+            generationConfig: {
+                maxOutputTokens: 1024,
+                temperature: 0.7,
+                response_mime_type: "application/json"
+            }
+        },
+        {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30000,
+        }
+    );
+
+    const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) throw new Error('Gemini returned empty content');
+    return JSON.parse(content);
+}
+
+exports.analyzeSkillGap = async (progressData) => {
+    try {
+        console.log('[SkillGap] Attempting analysis with Groq...');
+        return await callGroqAPI(progressData);
+    } catch (err) {
+        console.warn(`[SkillGap] Groq failed: ${err.message}. Falling back to Gemini...`);
     }
-
-    if (weakAreas.length === 0) {
-        return { insights: "No significant skill gaps found. Keep up the good work!", weakAreas: [] };
-    }
-
-    const systemPrompt = `You are an expert tech mentor. 
-Your job is to provide a "Skill Gap Analysis" based on the student's scores. 
-You MUST format your output strictly into these 3 sections:
-### 1. Analyze Quiz Results
-(Briefly summarize their overall performance across all skills provided)
-
-### 2. Identify Weak Areas
-(Explain why their specific weaknesses: ${weakAreas.join(", ")} are critical to improve)
-
-### 3. Suggest Improvement Path
-(Give a step-by-step roadmap and project ideas to level up these specific skills)`;
-
-    const userPrompt = `The student scored the following: ${JSON.stringify(scores)}. Their weak areas are: ${weakAreas.join(", ")}. Provide the Skill Gap Analysis following the 3 sections precisely.`;
 
     try {
-        const response = await axios.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            {
-                model: "llama-3.3-70b-versatile",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt }
-                ],
-                max_tokens: 700,
-                temperature: 0.7
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                timeout: 30000,
-            }
-        );
-
-        let advice = response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
-
-        return { insights: advice, weakAreas };
-
+        console.log('[SkillGap] Attempting analysis with Gemini...');
+        return await callGeminiAPI(progressData);
     } catch (err) {
-        const status = err.response?.status;
-        const hfError = err.response?.data?.error;
-        console.error(`[SkillGap] Status: ${status}. Error: ${hfError}`);
-
-        // Fallback to rule-based message if AI fails
-        return {
-            insights: `You need to focus and improve in: ${weakAreas.join(", ")}. Practice daily exercises and review fundamentals.`,
-            weakAreas,
-            method: "rule-based-fallback"
-        };
+        console.error(`[SkillGap] Gemini also failed: ${err.message}`);
+        throw new Error('AI services are currently unavailable for skill gap analysis.');
     }
 };

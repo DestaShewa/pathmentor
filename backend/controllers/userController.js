@@ -216,6 +216,93 @@ const completeProfile = async (req, res) => {
   }
 };
 
+const updateLearningProfile = async (req, res) => {
+  try {
+    const {
+      skillTrack,
+      experienceLevel,
+      commitmentTime,
+      learningStyle,
+      learningGoal,
+      personalGoal,
+      persona,
+      tagline,
+      description,
+      keywords,
+      summary,
+      roadmap,
+      firstLessons,
+      projects,
+      recommendation
+    } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Process skillTrack to find matching course if possible (reusing logic from completeProfile)
+    let courseData = user.learningProfile?.course;
+    if (skillTrack && (!courseData || courseData.title !== skillTrack)) {
+      const Course = require("../models/Course");
+      let course = await Course.findOne({
+        $or: [
+          { title: new RegExp(`^${skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+          { title: new RegExp(skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") },
+        ]
+      });
+
+      if (!course) {
+        course = await Course.findOne({ category: new RegExp(skillTrack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") });
+      }
+
+      if (course) {
+        courseData = {
+          id: course._id,
+          title: course.title
+        };
+      }
+    }
+
+    user.learningProfile = {
+      ...user.learningProfile,
+      skillTrack: skillTrack || user.learningProfile?.skillTrack,
+      experienceLevel: experienceLevel || user.learningProfile?.experienceLevel,
+      commitmentTime: commitmentTime || user.learningProfile?.commitmentTime,
+      learningStyle: learningStyle || user.learningProfile?.learningStyle,
+      learningGoal: learningGoal || user.learningProfile?.learningGoal,
+      personalGoal: personalGoal || user.learningProfile?.personalGoal,
+      persona: persona || user.learningProfile?.persona,
+      tagline: tagline || user.learningProfile?.tagline,
+      description: description || user.learningProfile?.description,
+      keywords: keywords || user.learningProfile?.keywords,
+      summary: summary || user.learningProfile?.summary,
+      roadmap: roadmap || user.learningProfile?.roadmap,
+      firstLessons: firstLessons || user.learningProfile?.firstLessons,
+      projects: projects || user.learningProfile?.projects,
+      recommendation: recommendation || user.learningProfile?.recommendation,
+      course: courseData,
+      courseLevel: experienceLevel || user.learningProfile?.experienceLevel
+    };
+
+    user.onboardingCompleted = true;
+    await user.save();
+
+    res.status(200).json({
+      message: "Learning profile updated successfully",
+      user: {
+        _id: user._id,
+        learningProfile: user.learningProfile,
+        onboardingCompleted: user.onboardingCompleted
+      }
+    });
+
+  } catch (error) {
+    console.error("Update learning profile error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // ADMIN : get all users
 const getAllUsers= async (req,res) =>{
   const users = await User.find().select("-password");
@@ -608,6 +695,7 @@ module.exports= { getMyProfile,
                   getPendingMentors,
                   approveMentor,
                   rejectMentor,
-                  searchMentors
+                  searchMentors,
+                  updateLearningProfile
    
  };

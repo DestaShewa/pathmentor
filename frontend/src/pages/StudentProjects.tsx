@@ -30,6 +30,13 @@ interface Project {
     submittedAt: string;
     description?: string;
     link?: string;
+    aiUnderstandingScore?: number;
+    aiAuthenticityScore?: number;
+    aiProbability?: number;
+    aiFeedback?: string;
+    aiRecommendations?: string[];
+    mentorScore?: number;
+    finalScore?: number;
     grade?: string;
     feedback?: string;
     status: "submitted" | "reviewed" | "revision_needed";
@@ -235,15 +242,60 @@ const StudentProjects = () => {
                                       </span>
                                     </div>
                                     {mySubmission.description && <p className="text-sm text-foreground">{mySubmission.description}</p>}
+                                    
+                                    {/* AI Evaluation Display */}
+                                    {(mySubmission.aiUnderstandingScore !== undefined || mySubmission.aiAuthenticityScore !== undefined) && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 space-y-2">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase text-primary">Project Understanding</span>
+                                            <span className="text-sm font-bold">{mySubmission.aiUnderstandingScore}/20</span>
+                                          </div>
+                                          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-primary" style={{ width: `${((mySubmission.aiUnderstandingScore || 0) / 20) * 100}%` }} />
+                                          </div>
+                                        </div>
+                                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 space-y-2">
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-bold uppercase text-emerald-400">Authenticity Score</span>
+                                            <span className="text-sm font-bold">{mySubmission.aiAuthenticityScore}/30</span>
+                                          </div>
+                                          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-400" style={{ width: `${((mySubmission.aiAuthenticityScore || 0) / 30) * 100}%` }} />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {mySubmission.aiFeedback && (
+                                      <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/10">
+                                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">AI Insights</p>
+                                        <p className="text-xs text-muted-foreground leading-relaxed italic">"{mySubmission.aiFeedback}"</p>
+                                      </div>
+                                    )}
+
+                                    {mySubmission.aiRecommendations && mySubmission.aiRecommendations.length > 0 && (
+                                      <div className="mt-2">
+                                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Recommendations</p>
+                                        <ul className="text-[10px] text-muted-foreground list-disc list-inside space-y-0.5">
+                                          {mySubmission.aiRecommendations.map((rec, i) => <li key={i}>{rec}</li>)}
+                                        </ul>
+                                      </div>
+                                    )}
+
                                     {mySubmission.link && (
                                       <a href={mySubmission.link} target="_blank" rel="noopener noreferrer"
-                                        className="text-xs text-primary hover:underline flex items-center gap-1">
+                                        className="text-xs text-primary hover:underline flex items-center gap-1 mt-2">
                                         <ExternalLink size={11} /> View submission
                                       </a>
                                     )}
-                                    {mySubmission.grade && (
-                                      <div className="pt-2 border-t border-white/10">
-                                        <p className="text-xs font-bold text-yellow-400">Grade: {mySubmission.grade}</p>
+                                    
+                                    {(mySubmission.grade || mySubmission.finalScore !== undefined) && (
+                                      <div className="pt-3 border-t border-white/10 mt-3">
+                                        <div className="flex justify-between items-center">
+                                          <p className="text-xs font-bold text-yellow-400">Final Evaluated Score</p>
+                                          <span className="text-lg font-black text-yellow-400">{mySubmission.finalScore || mySubmission.grade}/100</span>
+                                        </div>
                                         {mySubmission.feedback && <p className="text-sm text-muted-foreground mt-1 italic">"{mySubmission.feedback}"</p>}
                                       </div>
                                     )}

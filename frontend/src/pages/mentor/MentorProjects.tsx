@@ -23,6 +23,13 @@ interface Submission {
   submittedAt: string;
   description?: string;
   link?: string;
+  aiUnderstandingScore?: number;
+  aiAuthenticityScore?: number;
+  aiProbability?: number;
+  aiFeedback?: string;
+  aiRecommendations?: string[];
+  mentorScore?: number;
+  finalScore?: number;
   grade?: string;
   feedback?: string;
   status: "submitted" | "reviewed" | "revision_needed";
@@ -361,10 +368,10 @@ const MentorProjects = () => {
                                             onClick={() => { 
                                               setGradingProject(project._id); 
                                               setGradingStudent(sub.student._id); 
-                                              setGrade(sub.grade || ""); 
+                                              setGrade(sub.mentorScore?.toString() || ""); 
                                               setFeedback(sub.feedback || ""); 
                                               setSubmissionToAnalyze(sub.description || "");
-                                              setAiCheckResult(null);
+                                              setAiCheckResult(sub.aiProbability !== undefined ? { similarity: sub.aiProbability, reason: sub.aiFeedback || "" } : null);
                                             }}
                                             className="text-xs text-primary hover:underline flex items-center gap-1"
                                           >
@@ -506,53 +513,62 @@ const MentorProjects = () => {
               <GlassCard className="p-6 border-yellow-500/20">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Star size={18} className="text-yellow-400" /> Grade Submission</h2>
                 <div className="space-y-4">
-                  {/* AI Authenticity Analysis Section */}
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        <span className="text-xs font-bold uppercase tracking-wider text-primary">Authenticity Check</span>
-                      </div>
-                      <GlassButton 
-                        variant="secondary" 
-                        size="sm" 
-                        onClick={handleAiCheck} 
-                        disabled={checkingAi || !submissionToAnalyze}
-                      >
-                        {checkingAi ? <Loader2 className="w-3 h-3 animate-spin" /> : "Run AI Detector"}
-                      </GlassButton>
+                  {/* AI Evaluation Metrics Section */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Sparkles className="w-4 h-4 text-primary" />
+                          <span className="text-[10px] font-bold uppercase text-primary">AI Understanding</span>
+                        </div>
+                        <div className="flex items-end justify-between">
+                           <span className="text-2xl font-black">{submissionToAnalyze ? (projects.find(p => p._id === gradingProject)?.submissions.find(s => s.student._id === gradingStudent)?.aiUnderstandingScore || 0) : 0}</span>
+                           <span className="text-[10px] text-muted-foreground pb-1">/ 20</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-tight italic">Score based on depth and clarity analysis.</p>
                     </div>
-                    
-                    {aiCheckResult ? (
-                      <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">AI Probability</span>
-                          <span className={`text-sm font-bold ${aiCheckResult.similarity > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {aiCheckResult.similarity}%
-                          </span>
+
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span className="text-[10px] font-bold uppercase text-emerald-400">Authenticity</span>
                         </div>
-                        <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${aiCheckResult.similarity}%` }}
-                            className={`h-full ${aiCheckResult.similarity > 50 ? 'bg-red-400' : 'bg-emerald-400'}`}
-                          />
+                        <div className="flex items-end justify-between">
+                           <span className="text-2xl font-black">{submissionToAnalyze ? (projects.find(p => p._id === gradingProject)?.submissions.find(s => s.student._id === gradingStudent)?.aiAuthenticityScore || 0) : 0}</span>
+                           <span className="text-[10px] text-muted-foreground pb-1">/ 30</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed italic border-l-2 border-primary/30 pl-2">
-                          "{aiCheckResult.reason}"
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-[10px] text-muted-foreground italic">
-                        Verify if this submission contains AI-generated content or was copy-pasted.
-                      </p>
-                    )}
+                        <p className="text-[10px] text-muted-foreground leading-tight italic">Score based on human-writing patterns.</p>
+                    </div>
                   </div>
 
+                  {/* AI Feedback Snippet */}
+                  {projects.find(p => p._id === gradingProject)?.submissions.find(s => s.student._id === gradingStudent)?.aiFeedback && (
+                    <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl mb-4">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">AI Diagnostic Insight</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed italic">
+                        "{projects.find(p => p._id === gradingProject)?.submissions.find(s => s.student._id === gradingStudent)?.aiFeedback}"
+                      </p>
+                    </div>
+                  )}
+
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Grade</label>
-                    <input value={grade} onChange={e => setGrade(e.target.value)} placeholder="e.g. A, B+, 85%, Pass"
-                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
+                      Mentor Manual Grade (0 - 50) *
+                    </label>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        max="50"
+                        value={grade} 
+                        onChange={e => setGrade(e.target.value)} 
+                        placeholder="Evaluate core quality, UI/UX, and implementation..."
+                        className="w-full p-4 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary text-lg font-bold" 
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">/ 50</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      Combine with AI scores for a total of 100 points.
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Feedback</label>
