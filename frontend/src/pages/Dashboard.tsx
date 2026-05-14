@@ -10,7 +10,6 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
 import { WelcomeSection } from "@/components/dashboard/WelcomeSection";
 import { ProgressHeroCard } from "@/components/dashboard/ProgressHeroCard";
-import { SkillGrowthChart } from "@/components/dashboard/SkillGrowthChart";
 import { StatsGrid } from "@/components/dashboard/StatsGrid";
 import { RoadmapSnapshot } from "@/components/dashboard/RoadmapSnapshot";
 import { AIMentorOrb } from "@/components/dashboard/AIMentorOrb";
@@ -450,10 +449,7 @@ const Dashboard = () => {
 
 
 
-                  <div className="grid lg:grid-cols-2 gap-8">
-                    <RoadmapSnapshot currentStage={1} />
-                    <SkillGrowthChart />
-                  </div>
+                  <RoadmapSnapshot currentStage={1} />
 
                   {/* AI Skill Gap Analysis Section */}
                   <SkillGapAnalysis 

@@ -7,7 +7,6 @@ import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
 import { WeeklyGrowthReport } from "@/components/dashboard/WeeklyGrowthReport";
-import { SkillGrowthChart } from "@/components/dashboard/SkillGrowthChart";
 import { ProgressHeroCard } from "@/components/dashboard/ProgressHeroCard";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
@@ -148,8 +147,6 @@ const ProgressPage = () => {
                             />
                         </div>
                         <div className="space-y-8">
-                            <SkillGrowthChart />
-
                             <GlassCard className="p-6">
                                 <h3 className="font-bold flex items-center gap-2 text-primary mb-4">
                                     <Sparkles size={18} /> AI Skill Gap Analysis

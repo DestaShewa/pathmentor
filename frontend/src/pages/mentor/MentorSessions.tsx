@@ -10,6 +10,25 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Clock, User, CheckCircle2, X, Star, MessageSquare, Video, CalendarClock, RefreshCw } from "lucide-react";
 
+// Convert datetime-local input value to ISO UTC string
+const convertLocalToUTC = (localDatetimeString: string): string => {
+  if (!localDatetimeString) return "";
+  const date = new Date(localDatetimeString);
+  return date.toISOString();
+};
+
+// Convert ISO UTC string to local datetime-local format for display
+const convertUTCToLocal = (utcString: string): string => {
+  if (!utcString) return "";
+  const date = new Date(utcString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 interface Session {
   _id: string;
   studentId: { _id: string; name: string; email: string };
@@ -84,7 +103,8 @@ const MentorSessions = () => {
     if (dt <= new Date()) { toast({ title: "Error", description: "Date must be in the future", variant: "destructive" }); return; }
     setBooking(true);
     try {
-      await api.post("/sessions/book-by-mentor", { studentId: bookStudentId, date: bookDate });
+      const utcDate = convertLocalToUTC(bookDate);
+      await api.post("/sessions/book-by-mentor", { studentId: bookStudentId, date: utcDate });
       toast({ title: "Session scheduled" });
       setShowBookModal(false); setBookStudentId(null); setBookDate("");
       fetchData();
@@ -143,7 +163,8 @@ const MentorSessions = () => {
 
     setPostponing(true);
     try {
-      await api.put(`/sessions/${postponingId}/postpone`, { newDate });
+      const utcDate = convertLocalToUTC(newDate);
+      await api.put(`/sessions/${postponingId}/postpone`, { newDate: utcDate });
       toast({ title: "Session postponed successfully" });
       setPostponingId(null);
       setNewDate("");

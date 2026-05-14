@@ -3,6 +3,29 @@ const User = require("../models/User");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logActivity } = require("../utils/activityLogger");
 
+/**
+ * TIMEZONE HANDLING STRATEGY:
+ * 
+ * All dates are stored and compared in UTC (milliseconds since epoch).
+ * Frontend sends dates as ISO UTC strings (e.g., "2024-05-14T14:30:00.000Z")
+ * Backend expects ISO UTC strings and converts them to Date objects.
+ * Each client displays dates in their local timezone using new Date().toLocaleTimeString()
+ * 
+ * This ensures that mentor and student see the SAME moment in time,
+ * just displayed in their respective local timezones.
+ */
+
+// Helper function to format date for display (ISO format for timezone-agnostic display)
+const formatSessionDate = (date) => {
+  const d = new Date(date);
+  return d.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+};
+
+const formatSessionTime = (date) => {
+  const d = new Date(date);
+  return d.toISOString().split('T')[1].substring(0, 5); // Returns HH:MM in UTC
+};
+
 // POST /api/sessions/book
 const bookSession = asyncHandler(async (req, res) => {
   const { mentorId, date } = req.body;
@@ -13,6 +36,7 @@ const bookSession = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Approved mentor not found" });
   }
 
+  // Expect date to be ISO UTC string (e.g., "2024-05-14T14:30:00.000Z")
   const sessionDate = new Date(date);
   if (sessionDate < new Date()) return res.status(400).json({ message: "Session date must be in the future" });
 
@@ -44,7 +68,7 @@ const bookSession = asyncHandler(async (req, res) => {
     userId: mentorId,
     type: "info",
     title: "New Session Booked",
-    message: `${req.user.name} has booked a session with you on ${sessionDate.toLocaleDateString()} at ${sessionDate.toLocaleTimeString()}`,
+    message: `${req.user.name} has booked a session with you on ${formatSessionDate(sessionDate)} at ${formatSessionTime(sessionDate)} UTC (will display in your local timezone)`,
     link: "/mentor/sessions",
     icon: "calendar"
   }).catch(err => console.error("Failed to notify mentor:", err));
@@ -247,7 +271,7 @@ const postponeSession = asyncHandler(async (req, res) => {
     userId: session.studentId,
     type: "info",
     title: "Session Postponed",
-    message: `Your session has been rescheduled to ${newSessionDate.toLocaleDateString()} at ${newSessionDate.toLocaleTimeString()}`,
+    message: `Your session has been rescheduled to ${formatSessionDate(newSessionDate)} at ${formatSessionTime(newSessionDate)} UTC (will display in your local timezone)`,
     link: "/sessions",
     icon: "calendar"
   }).catch(err => console.error("Failed to notify student:", err));
@@ -266,6 +290,7 @@ const mentorBookSession = asyncHandler(async (req, res) => {
   }
 
   const mentorId = req.user._id;
+  // Expect date to be ISO UTC string (e.g., "2024-05-14T14:30:00.000Z")
   const sessionDate = new Date(date);
   if (sessionDate < new Date()) return res.status(400).json({ message: "Session date must be in the future" });
 
@@ -295,7 +320,7 @@ const mentorBookSession = asyncHandler(async (req, res) => {
     userId: studentId,
     type: "info",
     title: "Session Scheduled",
-    message: `Your mentor scheduled a session on ${sessionDate.toLocaleDateString()} at ${sessionDate.toLocaleTimeString()}`,
+    message: `Your mentor scheduled a session on ${formatSessionDate(sessionDate)} at ${formatSessionTime(sessionDate)} UTC (will display in your local timezone)`,
     link: "/sessions",
     icon: "calendar"
   }).catch(err => console.error("Failed to notify student:", err));

@@ -24,6 +24,13 @@ interface Session {
 
 import { handleSidebarNav } from "@/lib/navHelper";
 
+// Convert datetime-local input value to ISO UTC string
+const convertLocalToUTC = (localDatetimeString: string): string => {
+  if (!localDatetimeString) return "";
+  const date = new Date(localDatetimeString);
+  return date.toISOString();
+};
+
 const statusColors = { scheduled: "bg-blue-500/20 text-blue-300", completed: "bg-green-500/20 text-green-300", cancelled: "bg-red-500/20 text-red-300" };
 
 const Sessions = () => {
@@ -65,7 +72,8 @@ const Sessions = () => {
     if (!selectedMentor || !selectedDate) { toast({ title: "Error", description: "Please select a mentor and date", variant: "destructive" }); return; }
     setBooking(true);
     try {
-      await api.post("/sessions/book", { mentorId: selectedMentor, date: selectedDate });
+      const utcDate = convertLocalToUTC(selectedDate);
+      await api.post("/sessions/book", { mentorId: selectedMentor, date: utcDate });
       toast({ title: "Session booked!", description: "Your session has been scheduled." });
       setShowBookingForm(false); setSelectedMentor(""); setSelectedDate("");
       const res = await api.get("/sessions/my");
@@ -128,7 +136,7 @@ const Sessions = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Date & Time</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Date & Time (Your Local Time)</label>
                       <input type="datetime-local" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} min={new Date().toISOString().slice(0, 16)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary" />
                     </div>
                   </div>
