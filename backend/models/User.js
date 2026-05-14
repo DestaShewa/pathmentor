@@ -28,9 +28,9 @@ const userSchema=new mongoose.Schema(
             default: null
         },
         
-        verificationToken: {
-            type: String
-        },
+        isVerified: { type: Boolean, default: false },
+        verificationTokenExpiry: { type: Date },
+        verificationToken: { type: String },
         learningProfile: {
             skillTrack: String,
             experienceLevel: String,
@@ -103,3 +103,6 @@ const userSchema=new mongoose.Schema(
 ); 
 
 module.exports = mongoose.model("User", userSchema);
+
+
+
