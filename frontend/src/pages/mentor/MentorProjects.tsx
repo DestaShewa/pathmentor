@@ -79,7 +79,6 @@ const MentorProjects = () => {
   const [grade, setGrade]     = useState("");
   const [feedback, setFeedback] = useState("");
   const [grading, setGrading] = useState(false);
-  const [checkingAi, setCheckingAi] = useState(false);
   const [aiCheckResult, setAiCheckResult] = useState<{ similarity: number, reason: string } | null>(null);
   const [submissionToAnalyze, setSubmissionToAnalyze] = useState("");
 
@@ -185,23 +184,6 @@ const MentorProjects = () => {
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setGrading(false); }
-  };
-  
-  const handleAiCheck = async () => {
-    if (!submissionToAnalyze.trim()) {
-      toast({ title: "No content", description: "This submission has no text to analyze.", variant: "destructive" });
-      return;
-    }
-    setCheckingAi(true);
-    try {
-      const res = await aiService.aiDetector(submissionToAnalyze);
-      setAiCheckResult(res);
-      toast({ title: "Analysis complete", description: `AI Probability: ${res.similarity}%` });
-    } catch (e) {
-      toast({ title: "Error", description: "AI detector service unavailable", variant: "destructive" });
-    } finally {
-      setCheckingAi(false);
-    }
   };
 
   const resetForm = () => {

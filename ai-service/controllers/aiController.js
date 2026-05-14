@@ -1,9 +1,6 @@
 const chatbotService = require('../services/chatbotService');
 const summarizerService = require('../services/summarizerService');
-const recommendationService = require('../services/recommendationService');
 const skillGapService = require('../services/skillGapService');
-const similarityService = require('../services/similarityService');
-const aiDetectorService = require('../services/aiDetectorService');
 const quizService = require('../services/quizService');
 const projectEvaluationService = require('../services/projectEvaluationService');
 const personaService = require('../services/personaService');
@@ -55,17 +52,7 @@ exports.extractText = async (req, res) => {
     }
 };
 
-exports.recommend = async (req, res) => {
-    try {
-        const { topic } = req.body;
-        if (!topic) return res.status(400).json({ error: 'Topic is required' });
-        const recommendation = await recommendationService.getRecommendation(topic);
-        res.json({ recommendation });
-    } catch (error) {
-        console.error('Recommend error:', error.message);
-        res.status(500).json({ error: 'Failed to generate recommendation' });
-    }
-};
+
 
 exports.skillGap = async (req, res) => {
     try {
@@ -121,29 +108,9 @@ exports.evaluateProject = async (req, res) => {
     }
 };
 
-exports.similarity = async (req, res) => {
-    try {
-        const { source, target } = req.body;
-        if (!source || !target) return res.status(400).json({ error: 'Source and Target texts are required.' });
-        const result = await similarityService.analyzeSimilarity(source, target);
-        res.json({ ...result });
-    } catch (error) {
-        console.error('Similarity error:', error.message);
-        res.status(500).json({ error: 'Failed to analyze text similarity' });
-    }
-};
 
-exports.aiDetector = async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: 'Text is required for AI Detection.' });
-        const result = await aiDetectorService.analyzeText(text);
-        res.json({ result });
-    } catch (error) {
-        console.error('AI Detector error:', error.message);
-        res.status(500).json({ error: 'Failed to evaluate AI origin probability.' });
-    }
-};
+
+
 
 exports.generateQuiz = async (req, res) => {
     try {

@@ -1,14 +1,11 @@
 import { motion } from 'framer-motion';
-import { LearningProfile } from '@/lib/matchingEngine';
-import { PERSONAS } from '@/lib/registrationTypes';
 
 interface PersonaRevealStepProps {
-  profile: LearningProfile;
+  profile: any;
   isGenerating: boolean;
 }
 
 export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepProps) {
-  const persona = PERSONAS[profile.persona];
 
   if (isGenerating) {
     return (
@@ -52,7 +49,7 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
           }}
           transition={{ duration: 3, repeat: Infinity }}
         >
-          <span className="text-8xl">{persona.emoji}</span>
+          <span className="text-8xl">{profile.emoji || "🚀"}</span>
         </motion.div>
 
         <motion.div
@@ -61,11 +58,11 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
           transition={{ delay: 0.3 }}
         >
           <p className="text-sm text-primary font-medium mb-2">You are a...</p>
-          <h2 className={`text-4xl md:text-5xl font-bold bg-gradient-to-r ${persona.color} bg-clip-text text-transparent mb-3`}>
-            {persona.name}
+          <h2 className={`text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent mb-3`}>
+            {profile.persona}
           </h2>
-          <p className="text-lg text-muted-foreground mb-4">{persona.title}</p>
-          <p className="text-foreground max-w-md mx-auto">{persona.description}</p>
+          <p className="text-lg text-muted-foreground mb-4">{profile.tagline}</p>
+          <p className="text-foreground max-w-md mx-auto">{profile.description}</p>
         </motion.div>
 
         {/* Traits */}
@@ -73,9 +70,9 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="flex justify-center gap-3 mt-6"
+          className="flex justify-center gap-3 mt-6 flex-wrap"
         >
-          {persona.traits.map((trait, index) => (
+          {profile.traits?.map((trait: string, index: number) => (
             <motion.span
               key={trait}
               initial={{ opacity: 0, scale: 0 }}
@@ -107,6 +104,48 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
         >
           <p className="text-sm text-foreground leading-relaxed">{profile.aiSummary}</p>
         </motion.div>
+
+        {/* Superpower & Kryptonite */}
+        {(profile.superpower || profile.kryptonite) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.05 }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          >
+            {profile.superpower && (
+              <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-left">
+                <h4 className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <span>⚡</span> Your Superpower
+                </h4>
+                <p className="text-sm text-foreground/80 leading-relaxed">{profile.superpower}</p>
+              </div>
+            )}
+            {profile.kryptonite && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-left">
+                <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <span>⚠️</span> Your Kryptonite
+                </h4>
+                <p className="text-sm text-foreground/80 leading-relaxed">{profile.kryptonite}</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+        
+        {/* Day 1 Action Plan */}
+        {profile.dayOneActionPlan && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.08 }}
+            className="p-5 rounded-xl bg-accent/10 border border-accent/20 text-left mt-4"
+          >
+            <h4 className="text-xs font-bold text-accent uppercase tracking-wider mb-2 flex items-center gap-2">
+              <span>🎯</span> Day 1 Action Plan
+            </h4>
+            <p className="text-sm font-medium text-foreground/90 leading-relaxed">{profile.dayOneActionPlan}</p>
+          </motion.div>
+        )}
 
         {/* Profile details grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -146,9 +185,9 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
           <span>📖</span> Your First Lessons
         </h3>
         <div className="space-y-3">
-          {profile.recommendedLessons.slice(0, 3).map((item, index) => (
+          {profile.recommendedLessons?.slice(0, 3).map((item: any, index: number) => (
             <motion.div
-              key={item.lesson.id}
+              key={index}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 1.6 + index * 0.1 }}
@@ -159,12 +198,12 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
                   {index + 1}
                 </span>
                 <div>
-                  <p className="font-medium text-sm">{item.lesson.title}</p>
-                  <p className="text-xs text-muted-foreground">{item.lesson.duration} min</p>
+                  <p className="font-medium text-sm">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{item.time}</p>
                 </div>
               </div>
               <div className="text-xs text-primary font-medium">
-                {Math.round(item.score * 100)}% match
+                {item.matchScore}% match
               </div>
             </motion.div>
           ))}
@@ -182,9 +221,9 @@ export function PersonaRevealStep({ profile, isGenerating }: PersonaRevealStepPr
           <span>🎯</span> Recommended Projects
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {profile.recommendedProjects.map((project, index) => (
+          {profile.recommendedProjects?.map((project: any, index: number) => (
             <motion.div
-              key={project.id}
+              key={index}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.9 + index * 0.1 }}

@@ -17,6 +17,7 @@ import { AIMentorOrb } from "@/components/dashboard/AIMentorOrb";
 import { DailyMotivation } from "@/components/dashboard/DailyMotivation";
 import { WeeklyGrowthReport } from "@/components/dashboard/WeeklyGrowthReport";
 import { SmartReminder } from "@/components/dashboard/SmartReminder";
+import { SavedPersonaSection } from "@/components/dashboard/SavedPersonaSection";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import {
@@ -426,11 +427,12 @@ const Dashboard = () => {
                     streak={streak.current}
                   />
 
-                  {/* Daily Motivation + Weekly Growth Report */}
                   <div className="grid lg:grid-cols-2 gap-6">
                     <DailyMotivation />
                     <WeeklyGrowthReport />
                   </div>
+
+                  <SavedPersonaSection user={user} />
 
                   <ProgressHeroCard
                     stage={courseTitle}
@@ -446,266 +448,7 @@ const Dashboard = () => {
                     }}
                   />
 
-                  {/* ── Current Course Card ── */}
-                  <GlassCard className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-lg flex items-center gap-2">
-                        <BookOpen size={18} className="text-primary" /> Current Course
-                      </h3>
-                      {enrolledCourse && (
-                        <button
-                          onClick={() => navigate("/lessons")}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <PlayCircle size={12} /> Continue Learning
-                        </button>
-                      )}
-                    </div>
 
-                    {enrolledCourse ? (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-2xl font-bold text-black shrink-0">
-                            {enrolledCourse.title?.[0]?.toUpperCase() || "C"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-lg truncate">{enrolledCourse.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {completedLessons} of {totalLessons} lessons completed
-                            </p>
-                            <div className="flex items-center gap-3 mt-1.5">
-                              <div className="flex-1 bg-white/10 rounded-full h-2 overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
-                                  style={{ width: `${progressPercent}%` }}
-                                />
-                              </div>
-                              <span className="text-xs font-bold text-primary">{progressPercent}%</span>
-                            </div>
-                          </div>
-                        </div>
-                        <GlassButton
-                          variant="primary"
-                          className="w-full"
-                          onClick={() => navigate("/lessons")}
-                        >
-                          <PlayCircle size={16} /> Continue Learning
-                        </GlassButton>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-4 text-muted-foreground">
-                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center shrink-0">
-                          <BookOpen size={24} className="opacity-40" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">No course enrolled</p>
-                          <p className="text-sm">Browse and enroll in a course to start learning.</p>
-                          <GlassButton
-                            variant="secondary"
-                            size="sm"
-                            className="mt-2"
-                            onClick={() => navigate("/courses")}
-                          >
-                            Browse Courses
-                          </GlassButton>
-                        </div>
-                      </div>
-                    )}
-                  </GlassCard>
-
-                  {/* ── Assigned Mentor Card ── */}
-                  <GlassCard className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-lg flex items-center gap-2">
-                        <User size={18} className="text-primary" /> Your Mentor
-                      </h3>
-                      {assignedMentor && (
-                        <button
-                          onClick={() => navigate("/sessions")}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <Calendar size={12} /> Book Session
-                        </button>
-                      )}
-                    </div>
-
-                    {assignedMentor ? (
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-2xl font-bold text-black shrink-0">
-                          {assignedMentor.name?.[0]?.toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-lg truncate">{assignedMentor.name}</p>
-                          <p className="text-sm text-muted-foreground">{assignedMentor.skillTrack}</p>
-                          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                            {assignedMentor.avgRating && (
-                              <span className="flex items-center gap-1 text-xs text-amber-400 font-bold">
-                                <Star size={11} fill="currentColor" /> {assignedMentor.avgRating} ({assignedMentor.reviewCount} reviews)
-                              </span>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {assignedMentor.studentCount}/20 students
-                            </span>
-                          </div>
-                        </div>
-                        <GlassButton variant="secondary" size="sm" onClick={() => navigate("/sessions")}>
-                          <MessageSquare size={14} /> Message
-                        </GlassButton>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-4 text-muted-foreground">
-                        <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center shrink-0">
-                          <User size={24} className="opacity-40" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">No mentor assigned yet</p>
-                          <p className="text-sm">A mentor will be assigned based on your skill track and level.</p>
-                        </div>
-                      </div>
-                    )}
-                  </GlassCard>
-
-                  {/* ── AI Personalized Roadmap ── */}
-                  <GlassCard className="p-6 border-primary/20 bg-primary/5 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
-                      <Sparkles size={120} className="text-primary" />
-                    </div>
-                    
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-lg flex items-center gap-2">
-                          <Sparkles size={18} className="text-primary" /> AI Personalized Roadmap
-                        </h3>
-                        {user?.onboardingCompleted && (
-                          <GlassButton 
-                            variant="secondary" 
-                            size="sm" 
-                            onClick={() => navigate("/onboarding-persona")}
-                            className="text-[10px] h-7"
-                          >
-                            Reset Roadmap
-                          </GlassButton>
-                        )}
-                      </div>
-
-                      {user?.onboardingCompleted && user.learningProfile?.persona ? (
-                        <div className="space-y-6">
-                          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-1">Your Learning Persona</p>
-                              <h4 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none">{user.learningProfile.persona}</h4>
-                              <p className="text-primary font-bold text-sm mt-1">{user.learningProfile.tagline || "Visionary Learner"}</p>
-                            </div>
-                            <GlassButton 
-                              variant="primary" 
-                              size="sm" 
-                              onClick={handleGetRecommendation}
-                              disabled={loadingAi}
-                              className="text-[10px] h-8 shrink-0"
-                            >
-                              {loadingAi ? <Loader2 size={12} className="animate-spin mr-2" /> : <Sparkles size={12} className="mr-2" />}
-                              Get Weekly AI Insight
-                            </GlassButton>
-                          </div>
-
-                          <div className="space-y-4">
-                            <p className="text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-3 leading-relaxed">
-                              "{user.learningProfile.recommendation}"
-                            </p>
-                            
-                            {aiRecommendation && (
-                              <motion.div 
-                                initial={{ opacity: 0, x: -10 }} 
-                                animate={{ opacity: 1, x: 0 }}
-                                className="p-4 bg-primary/20 border border-primary/30 rounded-2xl relative overflow-hidden"
-                              >
-                                <div className="absolute top-0 right-0 p-2 opacity-10">
-                                  <Brain size={40} className="text-primary" />
-                                </div>
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
-                                  <Lightbulb size={12} /> Fresh AI Recommendation
-                                </p>
-                                <p className="text-xs leading-relaxed font-medium">
-                                  {aiRecommendation}
-                                </p>
-                              </motion.div>
-                            )}
-                          </div>
-
-                          <div className="grid md:grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                <Layers size={12} className="text-primary" /> Roadmap Focus
-                              </p>
-                              <div className="space-y-2">
-                                {user.learningProfile.roadmap && Object.entries(user.learningProfile.roadmap).slice(0, 3).map(([key, value]: [string, any], i: number) => (
-                                  <div key={i} className="flex items-center gap-2 text-[11px] bg-white/5 p-2 rounded-xl border border-white/5">
-                                    <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[9px] flex items-center justify-center font-bold">
-                                      {i + 1}
-                                    </span>
-                                    <span className="truncate opacity-80">{value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="space-y-3">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                <Trophy size={12} className="text-primary" /> Core Projects
-                              </p>
-                              <div className="space-y-2">
-                                {user.learningProfile.projects?.slice(0, 3).map((project: any, i: number) => (
-                                  <div key={i} className="flex items-center gap-2 text-[11px] bg-white/5 p-2 rounded-xl border border-white/5">
-                                    <CheckCircle2 size={10} className="text-primary" />
-                                    <span className="truncate opacity-80">{typeof project === 'string' ? project : project.title}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20 flex flex-col gap-3">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                              <BookOpen size={12} /> Top Recommended Lessons
-                            </p>
-                            <div className="space-y-2">
-                               {user.learningProfile.firstLessons?.slice(0, 2).map((lesson: any, i: number) => (
-                                 <div key={i} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate("/lessons")}>
-                                   <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 rounded bg-white/5 flex items-center justify-center text-[10px] font-bold group-hover:bg-primary group-hover:text-black transition-colors">{i+1}</div>
-                                      <p className="text-xs font-medium group-hover:text-primary transition-colors">{lesson.title}</p>
-                                   </div>
-                                   <span className="text-[10px] font-bold text-primary">{lesson.matchScore}% Match</span>
-                                 </div>
-                               ))}
-                            </div>
-                            <GlassButton variant="primary" size="sm" className="w-full mt-1" onClick={() => navigate("/lessons")}>
-                              Start Learning Now
-                            </GlassButton>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 space-y-4">
-                          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto border border-dashed border-primary/30">
-                            <Brain className="w-8 h-8 text-primary/40" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="font-bold text-lg">Build Your AI-Powered Roadmap</h4>
-                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                              Take a 2-minute survey about your goals and vision to unlock a perfectly tailored master's path.
-                            </p>
-                          </div>
-                          <GlassButton 
-                            variant="primary" 
-                            glow 
-                            onClick={() => navigate("/onboarding-persona")}
-                            className="px-8"
-                          >
-                            Start Personalization <ArrowRight size={16} className="ml-2" />
-                          </GlassButton>
-                        </div>
-                      )}
-                    </div>
-                  </GlassCard>
 
                   <div className="grid lg:grid-cols-2 gap-8">
                     <RoadmapSnapshot currentStage={1} />
@@ -927,7 +670,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-function setAiRecommendation(arg0: any) {
-  throw new Error("Function not implemented.");
-}

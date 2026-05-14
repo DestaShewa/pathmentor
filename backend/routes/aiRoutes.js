@@ -46,16 +46,6 @@ router.post('/quiz', guard, async (req, res) => {
     }
 });
 
-// Recommendation proxy
-router.post('/recommend', guard, async (req, res) => {
-    try {
-        const { topic } = req.body;
-        const result = await aiService.getRecommendation(topic);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Skill Gap proxy
 router.post('/skill-gap', guard, async (req, res) => {
@@ -68,27 +58,7 @@ router.post('/skill-gap', guard, async (req, res) => {
     }
 });
 
-// Similarity proxy
-router.post('/similarity', guard, async (req, res) => {
-    try {
-        const { source, target } = req.body;
-        const result = await aiService.analyzeSimilarity(source, target);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
-// AI Detector proxy
-router.post('/ai-detector', guard, async (req, res) => {
-    try {
-        const { text } = req.body;
-        const result = await aiService.aiDetector(text);
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // Persona proxy
 router.post('/persona', guard, async (req, res) => {

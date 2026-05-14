@@ -39,18 +39,22 @@ const userSchema=new mongoose.Schema(
             learningGoal: String,
             personalGoal: String,
             persona: String,
+            emoji: String,
             tagline: String,
             description: String,
-            keywords: [String],
-            summary: String,
-            roadmap: {
-              startingStage: String,
-              lessonFormat: String,
-              contentStyle: String,
-              dailyPlan: String,
-              projectFocus: String
-            },
-            firstLessons: [
+            traits: [String],
+            aiSummary: String,
+            superpower: String,
+            kryptonite: String,
+            dayOneActionPlan: String,
+            confidenceScore: Number,
+            roadmap: String,
+            startingStage: String,
+            lessonLength: String,
+            contentPriority: String,
+            dailyPlan: String,
+            projectRecommendation: String,
+            recommendedLessons: [
               {
                 title: String,
                 time: String,
@@ -58,7 +62,7 @@ const userSchema=new mongoose.Schema(
               }
             ],
             learningPath: [String], // for backward compatibility or future use
-            projects: mongoose.Schema.Types.Mixed, // Can be old array of strings or new array of objects
+            recommendedProjects: mongoose.Schema.Types.Mixed, // Can be old array of strings or new array of objects
             strengths: [String],
             recommendation: String,
             course: {

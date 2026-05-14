@@ -31,14 +31,6 @@ export const aiService = {
     },
 
     /**
-     * Get AI-powered course recommendations
-     */
-    getRecommendation: async (topic: string) => {
-        const response = await api.post("/ai/recommend", { topic });
-        return response.data;
-    },
-
-    /**
      * Analyze skill gap based on assessment scores (Legacy)
      */
     analyzeSkillGap: async (scores: any) => {
@@ -51,22 +43,6 @@ export const aiService = {
      */
     getProgressSkillGap: async () => {
         const response = await api.get("/progress/skill-gap");
-        return response.data;
-    },
-
-    /**
-     * Analyze similarity between two texts
-     */
-    analyzeSimilarity: async (source: string, target: string) => {
-        const response = await api.post("/ai/similarity", { source, target });
-        return response.data;
-    },
-
-    /**
-     * Check if text is AI-generated
-     */
-    aiDetector: async (text: string) => {
-        const response = await api.post("/ai/ai-detector", { text });
         return response.data;
     },
 
@@ -92,6 +68,28 @@ export const aiService = {
     checkHealth: async () => {
         const response = await api.get("/ai/health");
         return response.data;
+    },
+
+    /**
+     * Get a learning recommendation based on a topic
+     */
+    getRecommendation: async (topic: string) => {
+        try {
+            const response = await api.post("/ai/chat", { 
+                message: `Provide a single, short, motivating sentence of advice for a student learning ${topic}. No extra text or quotes.` 
+            });
+            return {
+                recommendation: {
+                    suggestion: response.data?.response || response.data || "Keep practicing and building projects to solidify your knowledge."
+                }
+            };
+        } catch (error) {
+            return {
+                recommendation: {
+                    suggestion: "Focus on completing your assigned lessons first, then practice building small projects to cement your understanding."
+                }
+            };
+        }
     }
 };
 

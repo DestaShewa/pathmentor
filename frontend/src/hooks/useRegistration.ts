@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { RegistrationData, ExperienceLevel, CommitmentTime, LearningStyle, LearningGoal } from '@/lib/registrationTypes';
-import { generateLearningProfile, LearningProfile } from '@/lib/matchingEngine';
+import aiService from '@/services/aiService';
 
 const TOTAL_STEPS = 7;
 
@@ -16,7 +16,7 @@ const initialData: RegistrationData = {
 export function useRegistration() {
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<RegistrationData>(initialData);
-  const [learningProfile, setLearningProfile] = useState<LearningProfile | null>(null);
+  const [learningProfile, setLearningProfile] = useState<any | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const updateData = useCallback(<K extends keyof RegistrationData>(
@@ -50,13 +50,16 @@ export function useRegistration() {
   const nextStep = useCallback(async () => {
     if (currentStep < TOTAL_STEPS && canProceed()) {
       if (currentStep === 6) {
-        // Generate learning profile before showing final step
         setIsGenerating(true);
-        // Simulate AI processing delay for effect
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const profile = generateLearningProfile(data);
-        setLearningProfile(profile);
-        setIsGenerating(false);
+        try {
+          const res = await aiService.generatePersona(data);
+          setLearningProfile(res.result);
+        } catch (error) {
+          console.error("Failed to generate persona:", error);
+          // Allow advancing anyway or handle error
+        } finally {
+          setIsGenerating(false);
+        }
       }
       setCurrentStep(prev => prev + 1);
     }

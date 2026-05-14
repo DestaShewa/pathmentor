@@ -47,15 +47,6 @@ class AIService {
         }
     }
 
-    async getRecommendation(topic) {
-        try {
-            const response = await axios.post(`${AI_SERVICE_URL}/recommend`, { topic });
-            return response.data;
-        } catch (error) {
-            this._handleError(error, 'Recommendation');
-        }
-    }
-
     async analyzeSkillGap(data) {
         try {
             // If data is already the new progress structure, send it directly
@@ -69,30 +60,12 @@ class AIService {
         }
     }
 
-    async analyzeSimilarity(source, target) {
-        try {
-            const response = await axios.post(`${AI_SERVICE_URL}/similarity`, { source, target });
-            return response.data;
-        } catch (error) {
-            this._handleError(error, 'Similarity Analysis');
-        }
-    }
-
     async evaluateProject(title, description) {
         try {
             const response = await axios.post(`${AI_SERVICE_URL}/project-evaluate`, { title, description });
             return response.data;
         } catch (error) {
             this._handleError(error, 'Project Evaluation');
-        }
-    }
-
-    async aiDetector(text) {
-        try {
-            const response = await axios.post(`${AI_SERVICE_URL}/ai-detector`, { text });
-            return response.data;
-        } catch (error) {
-            this._handleError(error, 'AI Detection');
         }
     }
 
