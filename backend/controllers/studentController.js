@@ -29,7 +29,6 @@ const getStudents = async (req, res) => {
     const total = await User.countDocuments(query);
     const students = await User.find(query)
       .select("-password")
-      .populate("assignedMentor", "name email learningProfile")
       .skip((pageNumber - 1) * pageSize)
       .limit(pageSize)
       .sort({ createdAt: -1 });
