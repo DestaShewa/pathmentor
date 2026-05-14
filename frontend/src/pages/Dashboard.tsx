@@ -348,7 +348,7 @@ const Dashboard = () => {
     try {
       const topic = preferences?.skill_track || enrolledCourse?.title || "Web Development";
       const res = await aiService.getRecommendation(topic);
-      setAiRecommendation(res.suggestion || "Insights fetched!");
+      setAiRecommendation(res.recommendation?.suggestion || "Insights fetched!");
     } catch (e) {
       setAiRecommendation("Focus on completing your assigned lessons first, then practice building small projects to cement your understanding.");
     } finally {
