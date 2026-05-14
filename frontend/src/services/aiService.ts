@@ -58,7 +58,7 @@ export const aiService = {
      * Check if text is AI-generated
      */
     aiDetector: async (text: string) => {
-        const response = await api.post("/ai-detector", { text });
+        const response = await api.post("/ai/ai-detector", { text });
         return response.data;
     },
 

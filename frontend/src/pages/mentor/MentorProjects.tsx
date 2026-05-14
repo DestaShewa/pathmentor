@@ -11,8 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, X, Save, Users, Calendar,
   CheckCircle2, Clock, AlertCircle, ChevronDown,
-  ChevronUp, FileText, Star, RefreshCw, FolderKanban
+  ChevronUp, FileText, Star, RefreshCw, FolderKanban,
+  Sparkles, Loader2
 } from "lucide-react";
+import aiService from "@/services/aiService";
 
 interface Student { _id: string; name: string; email: string; learningProfile?: { skillTrack?: string } }
 interface Submission {
@@ -70,6 +72,9 @@ const MentorProjects = () => {
   const [grade, setGrade]     = useState("");
   const [feedback, setFeedback] = useState("");
   const [grading, setGrading] = useState(false);
+  const [checkingAi, setCheckingAi] = useState(false);
+  const [aiCheckResult, setAiCheckResult] = useState<{ similarity: number, reason: string } | null>(null);
+  const [submissionToAnalyze, setSubmissionToAnalyze] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -173,6 +178,23 @@ const MentorProjects = () => {
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setGrading(false); }
+  };
+  
+  const handleAiCheck = async () => {
+    if (!submissionToAnalyze.trim()) {
+      toast({ title: "No content", description: "This submission has no text to analyze.", variant: "destructive" });
+      return;
+    }
+    setCheckingAi(true);
+    try {
+      const res = await aiService.aiDetector(submissionToAnalyze);
+      setAiCheckResult(res);
+      toast({ title: "Analysis complete", description: `AI Probability: ${res.similarity}%` });
+    } catch (e) {
+      toast({ title: "Error", description: "AI detector service unavailable", variant: "destructive" });
+    } finally {
+      setCheckingAi(false);
+    }
   };
 
   const resetForm = () => {
@@ -336,7 +358,14 @@ const MentorProjects = () => {
                                           </span>
                                           {sub.grade && <span className="text-xs font-bold text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full">{sub.grade}</span>}
                                           <button
-                                            onClick={() => { setGradingProject(project._id); setGradingStudent(sub.student._id); setGrade(sub.grade || ""); setFeedback(sub.feedback || ""); }}
+                                            onClick={() => { 
+                                              setGradingProject(project._id); 
+                                              setGradingStudent(sub.student._id); 
+                                              setGrade(sub.grade || ""); 
+                                              setFeedback(sub.feedback || ""); 
+                                              setSubmissionToAnalyze(sub.description || "");
+                                              setAiCheckResult(null);
+                                            }}
                                             className="text-xs text-primary hover:underline flex items-center gap-1"
                                           >
                                             <Star size={11} /> {sub.grade ? "Re-grade" : "Grade"}
@@ -477,6 +506,49 @@ const MentorProjects = () => {
               <GlassCard className="p-6 border-yellow-500/20">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Star size={18} className="text-yellow-400" /> Grade Submission</h2>
                 <div className="space-y-4">
+                  {/* AI Authenticity Analysis Section */}
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-primary">Authenticity Check</span>
+                      </div>
+                      <GlassButton 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={handleAiCheck} 
+                        disabled={checkingAi || !submissionToAnalyze}
+                      >
+                        {checkingAi ? <Loader2 className="w-3 h-3 animate-spin" /> : "Run AI Detector"}
+                      </GlassButton>
+                    </div>
+                    
+                    {aiCheckResult ? (
+                      <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">AI Probability</span>
+                          <span className={`text-sm font-bold ${aiCheckResult.similarity > 50 ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {aiCheckResult.similarity}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${aiCheckResult.similarity}%` }}
+                            className={`h-full ${aiCheckResult.similarity > 50 ? 'bg-red-400' : 'bg-emerald-400'}`}
+                          />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed italic border-l-2 border-primary/30 pl-2">
+                          "{aiCheckResult.reason}"
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground italic">
+                        Verify if this submission contains AI-generated content or was copy-pasted.
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Grade</label>
                     <input value={grade} onChange={e => setGrade(e.target.value)} placeholder="e.g. A, B+, 85%, Pass"

@@ -72,6 +72,8 @@ const Lessons = () => {
   const [courseTitle, setCourseTitle] = useState("My Course");
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "long">("medium");
+  const [summaryFormat, setSummaryFormat] = useState<"paragraph" | "bullets">("paragraph");
 
   // Track time spent on current lesson
   const [lessonOpenedAt, setLessonOpenedAt] = useState<number | null>(null);
@@ -248,7 +250,7 @@ const Lessons = () => {
 
     setIsSummarizing(true);
     try {
-      const res = await aiService.summarize(selectedLesson.content);
+      const res = await aiService.summarize(selectedLesson.content, summaryLength, summaryFormat);
       setAiSummary(res.summary);
       toast.success("Summary generated! ✨");
     } catch (error) {
@@ -351,23 +353,46 @@ const Lessons = () => {
                       </div>
                     ) : (
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="flex gap-2">
-                          <GlassButton
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleSummarize}
-                            disabled={isSummarizing || !selectedLesson.content}
-                          >
-                            {isSummarizing ? (
-                              <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                            ) : (
-                              <Sparkles size={16} className="mr-1 text-primary" />
-                            )}
-                            AI Summary
-                          </GlassButton>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2 items-center">
+                            {/* Summary Settings */}
+                            <select
+                              value={summaryLength}
+                              onChange={(e) => setSummaryLength(e.target.value as any)}
+                              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-muted-foreground outline-none"
+                            >
+                              <option value="short">Short (TL;DR)</option>
+                              <option value="medium">Medium</option>
+                              <option value="long">Long</option>
+                            </select>
+                            <select
+                              value={summaryFormat}
+                              onChange={(e) => setSummaryFormat(e.target.value as any)}
+                              className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-muted-foreground outline-none"
+                            >
+                              <option value="paragraph">Paragraph</option>
+                              <option value="bullets">Bullets</option>
+                            </select>
+
+                            <GlassButton
+                              variant="secondary"
+                              size="sm"
+                              onClick={handleSummarize}
+                              disabled={isSummarizing || !selectedLesson.content}
+                            >
+                              {isSummarizing ? (
+                                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                              ) : (
+                                <Sparkles size={16} className="mr-1 text-primary" />
+                              )}
+                              AI Summary
+                            </GlassButton>
+                          </div>
+
                           <GlassButton
                             variant="primary"
                             size="sm"
+                            className="w-full"
                             onClick={() => handleCompleteLesson(selectedLesson._id)}
                             disabled={completing}
                           >

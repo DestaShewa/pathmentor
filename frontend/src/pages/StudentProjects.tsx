@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   FolderKanban, Calendar, User, CheckCircle2,
   Clock, AlertCircle, Send, X, ExternalLink,
-  ChevronDown, ChevronUp, RefreshCw, Star, Sparkles, Loader2
+  ChevronDown, ChevronUp, RefreshCw, Star, Loader2
 } from "lucide-react";
 import aiService from "@/services/aiService";
 
@@ -59,8 +59,6 @@ const StudentProjects = () => {
   const [submitDesc, setSubmitDesc] = useState("");
   const [submitLink, setSubmitLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [aiCheckResult, setAiCheckResult] = useState<{ similarity: number, reason: string } | null>(null);
-  const [checkingAi, setCheckingAi] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -93,28 +91,13 @@ const StudentProjects = () => {
         link: submitLink.trim() || undefined
       });
       toast({ title: "Project submitted!", description: "Your mentor will review it soon." });
-      setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); setAiCheckResult(null);
+      setSubmittingId(null); setSubmitDesc(""); setSubmitLink("");
       fetchData();
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setSubmitting(false); }
   };
 
-  const handleAiCheck = async () => {
-    if (!submitDesc.trim()) {
-      toast({ title: "Error", description: "Write a description to check", variant: "destructive" });
-      return;
-    }
-    setCheckingAi(true);
-    try {
-      const res = await aiService.aiDetector(submitDesc);
-      setAiCheckResult(res);
-    } catch (e) {
-      toast({ title: "Error", description: "AI detector unavailable", variant: "destructive" });
-    } finally {
-      setCheckingAi(false);
-    }
-  };
 
   const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
 
@@ -280,31 +263,15 @@ const StudentProjects = () => {
                                       <textarea
                                         value={submitDesc}
                                         onChange={e => setSubmitDesc(e.target.value)}
+                                        onPaste={e => {
+                                          e.preventDefault();
+                                          toast({ title: "Paste disabled", description: "You must write your description on hand.", variant: "destructive" });
+                                        }}
+                                        onDrop={e => e.preventDefault()}
                                         rows={3}
                                         placeholder="Describe what you built, what you learned, any challenges..."
                                         className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary resize-none text-sm"
                                       />
-
-                                      {/* AI Pre-submission check feature */}
-                                      <div className="flex flex-col gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-xs font-bold text-primary flex items-center gap-1"><Sparkles size={12} /> AI Authenticity Check</span>
-                                          <GlassButton variant="secondary" size="sm" onClick={handleAiCheck} disabled={checkingAi || !submitDesc.trim()}>
-                                            {checkingAi ? <Loader2 size={12} className="animate-spin" /> : "Check My Writing"}
-                                          </GlassButton>
-                                        </div>
-                                        {aiCheckResult && (
-                                          <div className="mt-2 text-xs">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <div className="flex-1 bg-white/10 rounded-full h-1.5 overflow-hidden">
-                                                <div className={`h-full transition-all duration-500 ${aiCheckResult.similarity > 50 ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${aiCheckResult.similarity}%` }}></div>
-                                              </div>
-                                              <span className={aiCheckResult.similarity > 50 ? 'text-red-400 font-bold' : 'text-green-400 font-bold'}>{aiCheckResult.similarity}% AI</span>
-                                            </div>
-                                            <p className="text-muted-foreground italic">"{aiCheckResult.reason}"</p>
-                                          </div>
-                                        )}
-                                      </div>
 
                                       <input
                                         value={submitLink}
@@ -316,7 +283,7 @@ const StudentProjects = () => {
                                         <GlassButton variant="primary" onClick={() => handleSubmit(project._id)} disabled={submitting} className="flex-1">
                                           <Send size={15} /> {submitting ? "Submitting..." : "Submit Project"}
                                         </GlassButton>
-                                        <GlassButton variant="secondary" onClick={() => { setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); setAiCheckResult(null); }}>
+                                        <GlassButton variant="secondary" onClick={() => { setSubmittingId(null); setSubmitDesc(""); setSubmitLink(""); }}>
                                           <X size={15} />
                                         </GlassButton>
                                       </div>
