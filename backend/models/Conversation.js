@@ -10,8 +10,16 @@ const conversationSchema = new mongoose.Schema(
     
     type: {
       type: String,
-      enum: ["direct", "study_buddy"],
+      enum: ["direct", "study_buddy", "group"],
       default: "direct"
+    },
+
+    name: {
+      type: String
+    },
+
+    avatar: {
+      type: String
     },
     
     lastMessage: {

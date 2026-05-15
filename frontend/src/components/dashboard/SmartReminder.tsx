@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import api from "@/services/api";
 
 interface Reminder {
-  type: "streak_risk" | "inactive" | "daily_nudge";
+  type: "streak_risk" | "inactive" | "daily_nudge" | "session";
   message: string;
   urgency: "high" | "medium" | "low";
+  link?: string;
 }
 
 export const SmartReminder = () => {
@@ -15,19 +16,39 @@ export const SmartReminder = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchReminder = async () => {
+    const fetchReminders = async () => {
       try {
+        // Fetch session reminder first (higher priority)
+        const sessionRes = await api.get("/sessions/upcoming-reminder");
+        if (sessionRes.data.data) {
+          const session = sessionRes.data.data;
+          const sessionTime = new Date(session.date);
+          const minsUntil = Math.round((sessionTime.getTime() - Date.now()) / 60000);
+          
+          setReminder({
+            type: "session",
+            message: minsUntil <= 0 
+              ? `Your session with ${session.mentorId?.name || session.studentId?.name} is starting NOW!`
+              : `You have a session with ${session.mentorId?.name || session.studentId?.name} in ${minsUntil} min${minsUntil === 1 ? '' : 's'}.`,
+            urgency: minsUntil <= 15 ? "high" : "medium",
+            link: `/sessions/${session._id}`
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Fallback to progress reminder
         const res = await api.get("/progress/reminder");
         if (res.data.reminder) {
           setReminder(res.data.reminder);
         }
       } catch (err) {
-        console.error("Failed to fetch reminder:", err);
+        console.error("Failed to fetch reminders:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchReminder();
+    fetchReminders();
   }, []);
 
   if (loading || !reminder || dismissed) return null;
@@ -71,7 +92,14 @@ export const SmartReminder = () => {
               {styles.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-relaxed">{reminder.message}</p>
+              <p className="text-sm font-medium leading-relaxed">
+                {reminder.message}
+                {reminder.link && (
+                  <a href={reminder.link} className="ml-2 underline font-bold hover:opacity-80 transition-opacity">
+                    Join Now →
+                  </a>
+                )}
+              </p>
             </div>
             <button
               onClick={() => setDismissed(true)}

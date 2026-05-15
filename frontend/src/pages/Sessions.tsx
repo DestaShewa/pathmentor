@@ -41,7 +41,10 @@ const Sessions = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [selectedMentor, setSelectedMentor] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDay, setSelectedDay] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [fetchingSlots, setFetchingSlots] = useState(false);
   const [ratingSessionId, setRatingSessionId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
@@ -49,6 +52,7 @@ const Sessions = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
+  const [activeTab, setActiveTab] = useState<"upcoming" | "history">("upcoming");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -68,14 +72,30 @@ const Sessions = () => {
     finally { setLoading(false); }
   };
 
+  useEffect(() => {
+    if (!selectedMentor || !selectedDay) return;
+    const fetchSlots = async () => {
+      setFetchingSlots(true);
+      try {
+        const res = await api.get(`/sessions/mentor/${selectedMentor}/availability?date=${selectedDay}`);
+        setAvailableSlots(res.data.slots || []);
+        setSelectedSlot("");
+      } catch (err) {
+        toast({ title: "Error", description: "Failed to fetch availability", variant: "destructive" });
+      } finally {
+        setFetchingSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [selectedMentor, selectedDay]);
+
   const handleBook = async () => {
-    if (!selectedMentor || !selectedDate) { toast({ title: "Error", description: "Please select a mentor and date", variant: "destructive" }); return; }
+    if (!selectedMentor || !selectedSlot) { toast({ title: "Error", description: "Please select a mentor and time slot", variant: "destructive" }); return; }
     setBooking(true);
     try {
-      const utcDate = convertLocalToUTC(selectedDate);
-      await api.post("/sessions/book", { mentorId: selectedMentor, date: utcDate });
+      await api.post("/sessions/book", { mentorId: selectedMentor, date: selectedSlot });
       toast({ title: "Session booked!", description: "Your session has been scheduled." });
-      setShowBookingForm(false); setSelectedMentor(""); setSelectedDate("");
+      setShowBookingForm(false); setSelectedMentor(""); setSelectedDay(""); setSelectedSlot("");
       const res = await api.get("/sessions/my");
       setSessions(res.data.data || []);
     } catch (e: any) { toast({ title: "Error", description: e.response?.data?.message || "Booking failed", variant: "destructive" }); }
@@ -127,18 +147,50 @@ const Sessions = () => {
               <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <GlassCard className="p-6 border-primary/30">
                   <div className="flex items-center justify-between mb-6"><h2 className="text-xl font-bold">Book a Session</h2><button onClick={() => setShowBookingForm(false)} className="p-2 rounded-xl hover:bg-white/10"><X size={18} /></button></div>
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Select Mentor</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">1. Select Mentor</label>
                       <select value={selectedMentor} onChange={e => setSelectedMentor(e.target.value)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary">
                         <option value="">Choose a mentor...</option>
                         {mentors.map(m => <option key={m._id} value={m._id}>{m.name}{m.learningProfile?.skillTrack ? ` — ${m.learningProfile.skillTrack}` : ""}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Date & Time (Your Local Time)</label>
-                      <input type="datetime-local" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} min={new Date().toISOString().slice(0, 16)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary" />
-                    </div>
+                    {selectedMentor && (
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">2. Select Date</label>
+                        <input type="date" value={selectedDay} onChange={e => setSelectedDay(e.target.value)} min={new Date().toISOString().slice(0, 10)} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary" />
+                      </div>
+                    )}
+                    {selectedDay && (
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">3. Select Time Slot (Local Time)</label>
+                        {fetchingSlots ? (
+                          <div className="p-4 text-center text-muted-foreground animate-pulse text-sm">Loading availability...</div>
+                        ) : availableSlots.length === 0 ? (
+                          <div className="p-4 text-center bg-white/5 border border-white/10 rounded-xl text-muted-foreground text-sm">No availability configured for this day.</div>
+                        ) : (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {availableSlots.map(slot => {
+                              const localTime = new Date(slot.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              return (
+                                <button
+                                  key={slot.time}
+                                  disabled={!slot.available}
+                                  onClick={() => setSelectedSlot(slot.time)}
+                                  className={`p-2 rounded-lg text-sm font-medium transition border ${
+                                    selectedSlot === slot.time ? 'bg-primary/20 border-primary text-primary' : 
+                                    slot.available ? 'bg-white/5 border-white/10 text-foreground hover:bg-white/10' : 
+                                    'opacity-30 cursor-not-allowed bg-black/20 border-transparent text-muted-foreground'
+                                  }`}
+                                >
+                                  {localTime}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3 mt-6">
                     <GlassButton variant="primary" onClick={handleBook} disabled={booking}>{booking ? "Booking..." : "Confirm Booking"}</GlassButton>
@@ -149,18 +201,43 @@ const Sessions = () => {
             )}
           </AnimatePresence>
 
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-white/10 mb-6">
+            <button
+              onClick={() => setActiveTab("upcoming")}
+              className={`pb-3 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                activeTab === "upcoming" ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Upcoming
+              {activeTab === "upcoming" && (
+                <motion.div layoutId="session_tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={`pb-3 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                activeTab === "history" ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              History
+              {activeTab === "history" && (
+                <motion.div layoutId="session_tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
+              )}
+            </button>
+          </div>
+
           <div>
-            <h2 className="text-lg font-bold mb-4">My Sessions</h2>
-            {sessions.length === 0 ? (
-              <GlassCard className="p-12 text-center text-muted-foreground"><Calendar size={48} className="mx-auto mb-4 opacity-30" /><p>No sessions yet. Book your first session with a mentor!</p></GlassCard>
+            {sessions.filter(s => activeTab === "upcoming" ? s.status === "scheduled" : s.status !== "scheduled").length === 0 ? (
+              <GlassCard className="p-12 text-center text-muted-foreground"><Calendar size={48} className="mx-auto mb-4 opacity-30" /><p>No {activeTab} sessions found.</p></GlassCard>
             ) : (
               <div className="space-y-4">
-                {sessions.map((session, idx) => (
+                {sessions.filter(s => activeTab === "upcoming" ? s.status === "scheduled" : s.status !== "scheduled").map((session, idx) => (
                   <motion.div key={session._id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }}>
-                    <GlassCard className="p-5">
+                    <GlassCard className="p-5 cursor-pointer hover:border-primary/40 transition-all group" onClick={() => navigate(`/sessions/${session._id}`)}>
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-xl font-bold text-primary shrink-0">{session.mentorId?.name?.[0]?.toUpperCase() || "M"}</div>
+                          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-xl font-bold text-primary shrink-0 group-hover:bg-primary group-hover:text-black transition-colors">{session.mentorId?.name?.[0]?.toUpperCase() || "M"}</div>
                           <div>
                             <p className="font-bold">{session.mentorId?.name}</p>
                             {session.mentorId?.learningProfile?.skillTrack && <p className="text-xs text-muted-foreground">{session.mentorId.learningProfile.skillTrack}</p>}
@@ -174,23 +251,14 @@ const Sessions = () => {
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[session.status]}`}>{session.status.toUpperCase()}</span>
                           {session.status === "scheduled" && (
-                            <>
-                              {/* Join call button — available 15 min before */}
-                              {(() => {
-                                const minsUntil = Math.round((new Date(session.date).getTime() - Date.now()) / 60000);
-                                return minsUntil <= 15 && minsUntil > -60 ? (
-                                  <button
-                                    onClick={() => navigate(`/room/${session._id}`)}
-                                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-primary text-black hover:bg-primary/90 transition-all"
-                                  >
-                                    <Video size={13} /> Join Call
-                                  </button>
-                                ) : null;
-                              })()}
-                              <button onClick={() => handleCancel(session._id)} className="text-xs text-red-400 hover:text-red-300">Cancel</button>
-                            </>
+                            <div className="flex flex-col gap-2">
+                              <GlassButton size="sm" variant="primary" onClick={(e) => { e.stopPropagation(); navigate(`/sessions/${session._id}`); }}>
+                                Details
+                              </GlassButton>
+                              <button onClick={(e) => { e.stopPropagation(); handleCancel(session._id); }} className="text-xs text-red-400 hover:text-red-300">Cancel</button>
+                            </div>
                           )}
-                          {session.status === "completed" && !session.studentRating && <button onClick={() => setRatingSessionId(session._id)} className="text-xs text-primary flex items-center gap-1"><Star size={12} /> Rate</button>}
+                          {session.status === "completed" && !session.studentRating && <button onClick={(e) => { e.stopPropagation(); setRatingSessionId(session._id); }} className="text-xs text-primary flex items-center gap-1"><Star size={12} /> Rate</button>}
                           {session.studentRating && <div className="flex items-center gap-0.5 text-yellow-400 text-xs">{Array.from({ length: session.studentRating }).map((_, i) => <Star key={i} size={12} fill="currentColor" />)}</div>}
                         </div>
                       </div>

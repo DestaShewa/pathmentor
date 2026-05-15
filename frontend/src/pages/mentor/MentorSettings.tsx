@@ -39,6 +39,13 @@ const MentorSettings = () => {
   const [bio, setBio]                 = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
+  // Availability form
+  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [startHour, setStartHour] = useState(9);
+  const [endHour, setEndHour] = useState(17);
+  const [timezone, setTimezone] = useState("UTC");
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
   // Password form
   const [showPwdForm, setShowPwdForm] = useState(false);
   const [currentPwd, setCurrentPwd]   = useState("");
@@ -75,6 +82,13 @@ const MentorSettings = () => {
       setExperienceLevel(u.learningProfile?.experienceLevel || "");
       setCommitmentTime(u.learningProfile?.commitmentTime || "");
       setBio(u.learningProfile?.personalGoal || "");
+      
+      if (u.availability) {
+        setWorkingDays(u.availability.workingDays || [1, 2, 3, 4, 5]);
+        setStartHour(u.availability.startHour ?? 9);
+        setEndHour(u.availability.endHour ?? 17);
+        setTimezone(u.availability.timezone || "UTC");
+      }
     } catch { navigate("/auth"); }
     finally { setLoading(false); }
   };
@@ -89,6 +103,16 @@ const MentorSettings = () => {
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
     } finally { setSavingProfile(false); }
+  };
+
+  const handleSaveAvailability = async () => {
+    setSavingAvailability(true);
+    try {
+      await api.put("/sessions/availability", { workingDays, startHour, endHour, timezone });
+      toast({ title: "Working hours updated!" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.response?.data?.message || "Failed to update availability", variant: "destructive" });
+    } finally { setSavingAvailability(false); }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -184,6 +208,61 @@ const MentorSettings = () => {
                 </div>
                 <GlassButton variant="primary" onClick={handleSaveProfile} disabled={savingProfile} className="w-full">
                   <Save size={15} /> {savingProfile ? "Saving..." : "Save Profile"}
+                </GlassButton>
+              </div>
+            </GlassCard>
+          </motion.div>
+
+          {/* ── Working Hours (Availability) ── */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar size={14} className="text-primary" />
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Working Hours</h2>
+            </div>
+            <GlassCard className="overflow-hidden">
+              <div className="px-5 py-5 space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Working Days</label>
+                  <div className="flex flex-wrap gap-2">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => {
+                          if (workingDays.includes(idx)) {
+                            setWorkingDays(workingDays.filter(d => d !== idx));
+                          } else {
+                            setWorkingDays([...workingDays, idx]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${workingDays.includes(idx) ? 'bg-primary/20 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10'}`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Start Hour (24h)</label>
+                    <input type="number" min="0" max="23" value={startHour} onChange={e => setStartHour(parseInt(e.target.value) || 0)}
+                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">End Hour (24h)</label>
+                    <input type="number" min="1" max="24" value={endHour} onChange={e => setEndHour(parseInt(e.target.value) || 24)}
+                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-foreground focus:outline-none focus:border-primary" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Timezone</label>
+                  <select value={timezone} onChange={e => setTimezone(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-gray-900 border border-white/10 text-foreground focus:outline-none focus:border-primary">
+                    <option value="UTC">UTC (Default)</option>
+                    {/* Simplified for demo, could add full timezone list */}
+                  </select>
+                </div>
+                <GlassButton variant="primary" onClick={handleSaveAvailability} disabled={savingAvailability} className="w-full">
+                  <Save size={15} /> {savingAvailability ? "Saving..." : "Save Availability"}
                 </GlassButton>
               </div>
             </GlassCard>

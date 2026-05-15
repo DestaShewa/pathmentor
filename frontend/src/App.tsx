@@ -30,6 +30,7 @@ import StudyRoomDetail from "./pages/StudyRoomDetail";
 import ProgressPage from "./pages/ProgressPage";
 import SupportPage from "./pages/SupportPage";
 import SocialChat from "./pages/SocialChat";
+import SessionDetail from "./pages/SessionDetail";
 
 // Mentor Pages
 import MentorDashboard from "./pages/mentor/MentorDashboard";
@@ -118,6 +119,7 @@ const App = () => (
             <Route path="/study-buddies" element={<StudyBuddies />} />
             <Route path="/social-chat" element={<SocialChat />} />
             <Route path="/sessions" element={<Sessions />} />
+            <Route path="/sessions/:id" element={<SessionDetail />} />
             <Route path="/room/:id" element={<VideoRoom />} />
             <Route path="/projects" element={<StudentProjects />} />
             <Route path="/study-rooms" element={<StudyRooms />} />

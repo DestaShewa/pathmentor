@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
+import api from "@/services/api";
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -20,6 +21,48 @@ export const CreateRoomModal = ({ isOpen, onClose, onCreate, userCourse }: Creat
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [creating, setCreating] = useState(false);
+  
+  const [categories, setCategories] = useState<any[]>([]);
+  const [levels, setLevels] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedLevel, setSelectedLevel] = useState("");
+  const [selectedLesson, setSelectedLesson] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      // Reset form
+      setName(""); setTopic(""); setDescription(""); setSelectedCategory(""); setSelectedLevel(""); setSelectedLesson("");
+      // Fetch categories
+      api.get("/levels").then(res => setCategories(res.data.data || [])).catch(() => {});
+    }
+  }, [isOpen]);
+
+  // Fetch levels when category changes
+  useEffect(() => {
+    if (selectedCategory) {
+      // In this app, levels are often linked to a course. 
+      // If categories are courses, we fetch their levels.
+      api.get(`/courses/${selectedCategory}/roadmap`).then(res => {
+        setLevels(res.data.levels || res.data || []);
+      }).catch(() => setLevels([]));
+    } else {
+      setLevels([]);
+    }
+    setSelectedLevel("");
+  }, [selectedCategory]);
+
+  // Fetch lessons when level changes
+  useEffect(() => {
+    if (selectedLevel) {
+      const levelObj = levels.find(l => l._id === selectedLevel);
+      setLessons(levelObj?.lessons || []);
+    } else {
+      setLessons([]);
+    }
+    setSelectedLesson("");
+  }, [selectedLevel, levels]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +77,8 @@ export const CreateRoomModal = ({ isOpen, onClose, onCreate, userCourse }: Creat
         maxParticipants,
         isPublic,
         tags,
-        course: userCourse?.id
+        course: userCourse?.id,
+        lesson: selectedLesson || undefined
       });
       // Reset form
       setName("");
@@ -44,6 +88,7 @@ export const CreateRoomModal = ({ isOpen, onClose, onCreate, userCourse }: Creat
       setIsPublic(true);
       setTags([]);
       setTagInput("");
+      setSelectedLesson("");
     } catch (err) {
       console.error("Failed to create room:", err);
     } finally {
@@ -128,6 +173,58 @@ export const CreateRoomModal = ({ isOpen, onClose, onCreate, userCourse }: Creat
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
+
+               {/* Cascading Selection */}
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
+                     Category / Course
+                   </label>
+                   <select
+                     value={selectedCategory}
+                     onChange={(e) => setSelectedCategory(e.target.value)}
+                     className="w-full px-4 py-2.5 rounded-xl bg-gray-900 border border-white/10 text-foreground focus:outline-none focus:border-primary transition-colors"
+                   >
+                     <option value="">Select Category</option>
+                     {categories.map(c => (
+                       <option key={c._id} value={c._id}>{c.title}</option>
+                     ))}
+                   </select>
+                 </div>
+                 <div>
+                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
+                     Level
+                   </label>
+                   <select
+                     value={selectedLevel}
+                     onChange={(e) => setSelectedLevel(e.target.value)}
+                     disabled={!selectedCategory}
+                     className="w-full px-4 py-2.5 rounded-xl bg-gray-900 border border-white/10 text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                   >
+                     <option value="">Select Level</option>
+                     {levels.map(l => (
+                       <option key={l._id} value={l._id}>{l.title}</option>
+                     ))}
+                   </select>
+                 </div>
+               </div>
+
+               <div>
+                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">
+                   Lesson (Optional)
+                 </label>
+                 <select
+                   value={selectedLesson}
+                   onChange={(e) => setSelectedLesson(e.target.value)}
+                   disabled={!selectedLevel}
+                   className="w-full px-4 py-2.5 rounded-xl bg-gray-900 border border-white/10 text-foreground focus:outline-none focus:border-primary transition-colors disabled:opacity-50"
+                 >
+                   <option value="">No lesson attached</option>
+                   {lessons.map(l => (
+                     <option key={l._id} value={l._id}>{l.title}</option>
+                   ))}
+                 </select>
+               </div>
 
               {/* Description */}
               <div>

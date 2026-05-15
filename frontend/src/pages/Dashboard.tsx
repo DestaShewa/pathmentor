@@ -23,7 +23,7 @@ import {
   ArrowRight, Sparkles, CheckCircle2, Moon, Sun,
   Bell, Shield, Monitor, PlayCircle, BookOpen, Clock, Star,
   User, Calendar, MessageSquare, Loader2, Brain, Trophy, Layers,
-  TrendingUp, AlertTriangle, Lightbulb, Compass, Rocket
+  TrendingUp, AlertTriangle, Lightbulb, Compass, Rocket, Users, Hash
 } from "lucide-react";
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
@@ -395,6 +395,7 @@ const Dashboard = () => {
           if (view === "projects") { navigate("/projects"); return; }
           if (view === "progress") { navigate("/progress"); return; }
           if (view === "socialchat") { navigate("/social-chat"); return; }
+          if (view === "study-rooms") { navigate("/study-rooms"); return; }
           // In-page views (dashboard)
           setActiveView(view);
         }}
@@ -458,6 +459,61 @@ const Dashboard = () => {
                     onReanalyze={handleFetchSkillGap} 
                   />
                   
+                  {/* NEW FEATURES SPOTLIGHT: Study Buddies & Study Rooms */}
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <GlassCard className="p-6 border-primary/20 bg-primary/5 group">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                            <Users size={20} className="text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold">Peer Match</h3>
+                            <p className="text-[10px] text-primary/70 uppercase tracking-widest font-black">Same Track & Level</p>
+                          </div>
+                        </div>
+                        <GlassButton variant="ghost" size="sm" onClick={() => navigate("/study-buddies")}>
+                          View All <ArrowRight size={14} className="ml-1" />
+                        </GlassButton>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">JD</div>
+                          <div className="flex-1 min-w-0 text-xs">
+                            <p className="font-bold truncate">Join our community</p>
+                            <p className="text-muted-foreground truncate">Connect with peers on your path</p>
+                          </div>
+                        </div>
+                      </div>
+                    </GlassCard>
+
+                    <GlassCard className="p-6 border-emerald-500/20 bg-emerald-500/5 group">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                            <Hash size={20} className="text-emerald-400" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold">Study Rooms</h3>
+                            <p className="text-[10px] text-emerald-400/70 uppercase tracking-widest font-black">Active Now</p>
+                          </div>
+                        </div>
+                        <GlassButton variant="ghost" size="sm" onClick={() => navigate("/study-rooms")}>
+                          Join <ArrowRight size={14} className="ml-1" />
+                        </GlassButton>
+                      </div>
+                      <div className="space-y-3">
+                          <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-xs font-bold"><Layers size={14} /></div>
+                          <div className="flex-1 min-w-0 text-xs">
+                            <p className="font-bold truncate">No active rooms found</p>
+                            <p className="text-muted-foreground truncate">Create a room to start collaborating</p>
+                          </div>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  </div>
+                  
                   {!skillGapData && !loadingSkillGap && (
                     <GlassCard className="p-12 text-center border-dashed border-primary/30 bg-primary/5">
                       <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -472,6 +528,45 @@ const Dashboard = () => {
                       </GlassButton>
                     </GlassCard>
                   )}
+
+                  {/* QUICK ACCESS TO NEW FEATURES */}
+                  <div className="grid md:grid-cols-2 gap-6 pt-6 border-t border-white/10">
+                    <GlassCard className="p-8 border-primary/20 bg-gradient-to-br from-primary/10 to-transparent">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center shadow-lg shadow-primary/20">
+                          <Users className="text-primary" size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold">Study Buddies</h3>
+                          <p className="text-sm text-primary/80 font-medium">Smart Peer Matching</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-6 h-10">
+                        Find students on the same path with similar goals and experience levels using our AI matching system.
+                      </p>
+                      <GlassButton variant="primary" glow className="w-full" onClick={() => navigate("/study-buddies")}>
+                        Find Buddies <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                      </GlassButton>
+                    </GlassCard>
+
+                    <GlassCard className="p-8 border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-transparent">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                          <Hash className="text-emerald-400" size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-bold">Study Rooms</h3>
+                          <p className="text-sm text-emerald-400/80 font-medium">Collaborative Spaces</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-6 h-10">
+                        Join live study rooms to chat, share resources, and collaborate on project tasks together.
+                      </p>
+                      <GlassButton className="w-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border-none group" onClick={() => navigate("/study-rooms")}>
+                        Join a Room <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                      </GlassButton>
+                    </GlassCard>
+                  </div>
                 </div>
               </motion.div>
             )}

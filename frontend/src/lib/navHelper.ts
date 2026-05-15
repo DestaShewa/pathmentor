@@ -17,6 +17,7 @@ export const handleSidebarNav = (view: string, navigate: (path: string) => void)
     // dedicated progress page
     progress: "/progress",
     support: "/support",
+    socialchat: "/social-chat",
   };
   if (routes[view]) navigate(routes[view]);
 };

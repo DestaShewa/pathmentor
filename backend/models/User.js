@@ -84,6 +84,15 @@ const userSchema=new mongoose.Schema(
        ref: "User",
        default: null
      },
+     
+     // Mentor Availability Setup
+     availability: {
+       workingDays: { type: [Number], default: [1, 2, 3, 4, 5] },
+       startHour: { type: Number, default: 9 },
+       endHour: { type: Number, default: 17 },
+       timezone: { type: String, default: "UTC" }
+     },
+
      // Cached student count (for mentors — updated on assignment)
      studentCount: {
        type: Number,

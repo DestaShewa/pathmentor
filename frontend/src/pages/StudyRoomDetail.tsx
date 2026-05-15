@@ -33,6 +33,7 @@ interface StudyRoom {
   status: string;
   course?: { title: string };
   level?: { title: string };
+  lesson?: { _id: string; title: string; content?: string; url?: string };
   tags: string[];
   createdAt: string;
 }
@@ -230,21 +231,34 @@ const StudyRoomDetail = () => {
                     </div>
                   </div>
 
-                  {/* Course/Level */}
-                  {(room.course || room.level) && (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {room.course && (
-                        <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full">
-                          {room.course.title}
-                        </span>
-                      )}
-                      {room.level && (
-                        <span className="text-xs bg-white/5 text-muted-foreground px-3 py-1 rounded-full">
-                          {room.level.title}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                    {/* Course & Level */}
+                    {(room.course || room.level) && (
+                      <div className="flex items-center gap-3 mb-4">
+                        <BookOpen size={18} className="text-primary mt-0.5" />
+                        <div>
+                          {room.course && <p className="text-sm font-medium">{room.course.title}</p>}
+                          {room.level && <p className="text-xs text-muted-foreground">{room.level.title}</p>}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Attached Lesson */}
+                    {room.lesson && (
+                      <div className="mt-4 p-4 rounded-xl border border-primary/20 bg-primary/5 mb-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-2">
+                          <BookOpen size={14} /> Attached Lesson
+                        </h4>
+                        <p className="text-sm font-medium">{room.lesson.title}</p>
+                        {room.lesson.url && (
+                          <a href={room.lesson.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 underline mt-1 inline-block">
+                            View Lesson Material
+                          </a>
+                        )}
+                        {room.lesson.content && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{room.lesson.content}</p>
+                        )}
+                      </div>
+                    )}
 
                   {/* Tags */}
                   {room.tags && room.tags.length > 0 && (
