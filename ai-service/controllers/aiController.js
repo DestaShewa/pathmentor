@@ -114,10 +114,14 @@ exports.evaluateProject = async (req, res) => {
 
 exports.generateQuiz = async (req, res) => {
     try {
-        const { topic } = req.body;
-        if (!topic) return res.status(400).json({ error: 'Topic is required.' });
-        const result = await quizService.generateQuiz(topic);
-        res.json({ result });
+        const { topic, numQuestions, level } = req.body;
+        if (!topic) return res.status(400).json({ error: 'Topic or context is required.' });
+        
+        const count = parseInt(numQuestions) || 5;
+        const diff = level || 'intermediate';
+
+        const result = await quizService.generateQuiz(topic, count, diff);
+        res.json({ result: result.result, method: result.method });
     } catch (error) {
         console.error('Quiz Generation error:', error.message);
         res.status(500).json({ error: 'Failed to generate quiz.' });

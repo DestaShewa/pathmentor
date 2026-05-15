@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5005/api/ai';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5006/api/ai';
 
 class AIService {
     async checkHealth() {
@@ -38,9 +38,13 @@ class AIService {
         }
     }
 
-    async generateQuiz(topic) {
+    async generateQuiz(topic, numQuestions = 5, level = 'intermediate') {
         try {
-            const response = await axios.post(`${AI_SERVICE_URL}/quiz`, { topic });
+            const response = await axios.post(`${AI_SERVICE_URL}/quiz`, { 
+                topic, 
+                numQuestions, 
+                level 
+            });
             return response.data;
         } catch (error) {
             this._handleError(error, 'Quiz Generation');

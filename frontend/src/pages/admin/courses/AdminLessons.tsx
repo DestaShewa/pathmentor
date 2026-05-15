@@ -215,7 +215,18 @@ const AdminLessons = () => {
             <h2 className="text-xl font-bold mb-4">{viewLesson.title}</h2>
             {viewLesson.videoUrl && (
               <div className="aspect-video rounded-xl overflow-hidden mb-4 bg-black">
-                <iframe src={viewLesson.videoUrl} className="w-full h-full" allowFullScreen title={viewLesson.title} />
+                <iframe 
+                  src={
+                    viewLesson.videoUrl?.includes("youtube.com/watch?v=") 
+                      ? viewLesson.videoUrl.replace("watch?v=", "embed/").split("&")[0] 
+                      : viewLesson.videoUrl?.includes("youtu.be/")
+                      ? viewLesson.videoUrl.replace("youtu.be/", "youtube.com/embed/").split("?")[0]
+                      : viewLesson.videoUrl
+                  } 
+                  className="w-full h-full" 
+                  allowFullScreen 
+                  title={viewLesson.title} 
+                />
               </div>
             )}
             <p className="text-muted-foreground mb-4">{viewLesson.description}</p>

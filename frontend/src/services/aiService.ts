@@ -25,8 +25,28 @@ export const aiService = {
     /**
      * Generate a quiz based on a topic or lesson content
      */
-    generateQuiz: async (topic: string) => {
-        const response = await api.post("/ai/quiz", { topic });
+    generateQuiz: async (topic: string, numQuestions: number = 5, level: string = "intermediate") => {
+        const response = await api.post("/ai/quiz", { topic, numQuestions, level });
+        return response.data;
+    },
+
+    /**
+     * Generate a quiz strictly from uploaded lesson file content (server reads files from disk)
+     */
+    quizFromFiles: async (fileUrls: string[], numQuestions: number = 5, level: string = "intermediate") => {
+        const response = await api.post("/ai/quiz-from-files", { fileUrls, numQuestions, level });
+        return response.data;
+    },
+
+    /**
+     * Extract text from a file (PDF, etc.)
+     */
+    extractText: async (file: File) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await api.post("/ai/extract-text", formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
         return response.data;
     },
 

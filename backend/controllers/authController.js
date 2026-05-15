@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const emailService = require("../utils/emailService");
 const { logActivity } = require("../utils/activityLogger");
 
 // ================= REGISTER =================
@@ -45,6 +45,9 @@ const registerUser = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
+
+        // Send Welcome Email
+        emailService.sendWelcomeEmail(user);
 
         // Non-blocking activity log — never crash the response
         logActivity({
@@ -120,7 +123,7 @@ const loginUser = async (req, res) => {
     }
 };
 
-// ================= FORGOT PASSWORD =================
+// ================= FORGOT PASSWORD (OTP) =================
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -130,48 +133,21 @@ const forgotPassword = async (req, res) => {
 
         // Always return success to avoid email enumeration
         if (!user) {
-            return res.status(200).json({ message: "If that email exists, a reset link has been sent." });
+            return res.status(200).json({ message: "If that email exists, an OTP has been sent." });
         }
 
-        const resetToken = crypto.randomBytes(32).toString("hex");
-        const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
-        user.passwordResetToken = hashedToken;
-        user.passwordResetExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+        user.passwordResetOtp = hashedOtp;
+        user.passwordResetOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
         await user.save();
 
-        const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:8081"}/reset-password?token=${resetToken}`;
+        // Send OTP email — non-blocking
+        emailService.sendOtpEmail(user, otp);
 
-        // Use Brevo SMTP (smtp-brevo.com) — not Gmail service
-        const transporter = nodemailer.createTransport({
-            host: "smtp-relay.brevo.com",
-            port: 587,
-            secure: false,
-            auth: {
-                user: process.env.SMTP_USER,   // Brevo SMTP login
-                pass: process.env.SMTP_PASS    // Brevo SMTP key
-            }
-        });
-
-        // Send email — non-blocking, token is already saved above
-        transporter.sendMail({
-            from: `"PathMentor AI" <${process.env.SENDER_EMAIL}>`,
-            to: user.email,
-            subject: "Password Reset Request — PathMentor AI",
-            html: `
-                <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#0f172a;color:#fff;border-radius:16px;">
-                    <h2 style="color:#33b6ff;margin-bottom:8px;">Reset Your Password</h2>
-                    <p style="color:#94a3b8;margin-bottom:24px;">You requested a password reset for your PathMentor AI account. Click the button below — this link expires in <strong style="color:#fff;">1 hour</strong>.</p>
-                    <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#33b6ff;color:#000;font-weight:bold;border-radius:10px;text-decoration:none;font-size:15px;">Reset Password</a>
-                    <p style="color:#475569;font-size:12px;margin-top:32px;">If you didn't request this, you can safely ignore this email.</p>
-                    <p style="color:#475569;font-size:11px;">Or copy this link: ${resetUrl}</p>
-                </div>
-            `
-        }).catch((err) => {
-            console.error("Email send error:", err.message);
-        });
-
-        res.status(200).json({ message: "If that email exists, a reset link has been sent." });
+        res.status(200).json({ message: "OTP sent to your email. It expires in 10 minutes." });
 
     } catch (error) {
         console.error("Forgot password error:", error);
@@ -179,23 +155,24 @@ const forgotPassword = async (req, res) => {
     }
 };
 
-// ================= RESET PASSWORD =================
+// ================= RESET PASSWORD (OTP) =================
 const resetPassword = async (req, res) => {
     try {
-        const { token, newPassword } = req.body;
-        if (!token || !newPassword) {
-            return res.status(400).json({ message: "Token and new password are required" });
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "Email, OTP, and new password are required" });
         }
 
-        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+        const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
         const user = await User.findOne({
-            passwordResetToken: hashedToken,
-            passwordResetExpires: { $gt: Date.now() }
+            email: email.toLowerCase(),
+            passwordResetOtp: hashedOtp,
+            passwordResetOtpExpires: { $gt: Date.now() }
         });
 
         if (!user) {
-            return res.status(400).json({ message: "Invalid or expired reset token" });
+            return res.status(400).json({ message: "Invalid or expired OTP. Please request a new one." });
         }
 
         const strongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
@@ -205,8 +182,8 @@ const resetPassword = async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(newPassword, salt);
-        user.passwordResetToken = undefined;
-        user.passwordResetExpires = undefined;
+        user.passwordResetOtp = null;
+        user.passwordResetOtpExpires = null;
         await user.save();
 
         res.status(200).json({ message: "Password reset successfully. You can now log in." });
