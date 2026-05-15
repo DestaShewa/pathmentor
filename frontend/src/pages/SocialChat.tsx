@@ -246,75 +246,7 @@ const SocialChat = () => {
 
   const activeConversation = conversations.find((c) => c._id === selectedConversationId);
 
-  const renderContactItem = (conv: Conversation) => (
-    <button
-      key={conv._id}
-      onClick={() => setSelectedConversationId(conv._id)}
-      className={cn(
-        "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group relative",
-        selectedConversationId === conv._id ? "bg-purple-600/20 border-purple-500/30" : "hover:bg-white/5"
-      )}
-    >
-      <div className="relative">
-        <div className={cn("text-purple-400", selectedConversationId === conv._id ? "text-white" : "")}>
-          {conv.type === 'group' ? <Users size={24}/> : (
-             conv.participant?.avatar ? 
-             <img src={conv.participant.avatar} className="w-10 h-10 rounded-full object-cover" /> :
-             <UserCircle2 size={40}/>
-          )}
-        </div>
-        {conv.participant?.isOnline && (
-          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full" />
-        )}
-      </div>
-      <div className="text-left min-w-0 flex-1">
-        <div className="flex justify-between items-start">
-          <p className="text-sm font-semibold truncate">{conv.participant?.name || "Unknown User"}</p>
-          {conv.lastMessageAt && (
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-              {new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] opacity-70 truncate">
-          {conv.lastMessage ? conv.lastMessage.message : conv.participant?.role || "Contact"}
-        </p>
-      </div>
-      {conv.unreadCount > 0 && (
-        <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-          {conv.unreadCount}
-        </span>
-      )}
-    </button>
-  );
 
-  const renderContactItem = (contact: Contact) => (
-    <button
-      key={contact.id}
-      onClick={() => setSelectedUser(contact.id)}
-      className={cn(
-        "w-full flex items-center gap-3 p-3 rounded-xl transition border border-transparent mb-1",
-        selectedUser === contact.id ? "bg-purple-600/20 border-purple-500/30 text-white" : "hover:bg-white/5 text-muted-foreground"
-      )}
-    >
-      <div className="relative flex-shrink-0">
-        {contact.type === "group" ? (
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
-            <Users size={20} />
-          </div>
-        ) : (
-          <UserCircle2 size={40} className={cn(selectedUser === contact.id ? "text-purple-400" : "text-muted-foreground")} />
-        )}
-        {contact.status === "Online" && (
-          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full" />
-        )}
-      </div>
-      <div className="text-left min-w-0 flex-1">
-        <p className="text-sm font-semibold truncate">{contact.name}</p>
-        <p className="text-[11px] opacity-70 truncate">{contact.role}</p>
-      </div>
-    </button>
-  );
   return (
     <div className="min-h-screen relative bg-background text-white flex flex-col">
       <ParticlesBackground />
