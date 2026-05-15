@@ -12,7 +12,7 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import {
   BookOpen, Play, CheckCircle2, Lock,
   ChevronDown, ChevronUp, Trophy, ArrowLeft,
-  FileText, Image, Video, Music, File, ExternalLink, Sparkles, Loader2
+  FileText, Image, Video, Music, File as FileIcon, ExternalLink, Sparkles, Loader2, XCircle
 } from "lucide-react";
 import aiService from "@/services/aiService";
 
@@ -46,7 +46,12 @@ interface Lesson {
 
 interface Quiz {
   _id: string;
-  questions: { question: string; options: string[]; correctAnswer: number }[];
+  questions: { 
+    question: string; 
+    options: string[]; 
+    correctAnswer: number;
+    explanation?: string;
+  }[];
 }
 
 const Lessons = () => {
@@ -74,6 +79,12 @@ const Lessons = () => {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "long">("medium");
   const [summaryFormat, setSummaryFormat] = useState<"paragraph" | "bullets">("paragraph");
+  const [quizNumQuestions, setQuizNumQuestions] = useState(5);
+  const [quizDifficulty, setQuizDifficulty] = useState("intermediate");
+  const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(new Set());
+  const [selectedAttachments, setSelectedAttachments] = useState<Set<string>>(new Set());
+  const [extractingAttachments, setExtractingAttachments] = useState(false);
+  const [quizMaterialError, setQuizMaterialError] = useState(false);
 
   // Track time spent on current lesson
   const [lessonOpenedAt, setLessonOpenedAt] = useState<number | null>(null);
@@ -212,6 +223,7 @@ const Lessons = () => {
     setIsPracticeQuiz(false);
     setAiSummary(null);
     setIsSummarizing(false);
+    setRevealedAnswers(new Set());
     // Start tracking time
     setLessonOpenedAt(Date.now());
     try {
@@ -224,10 +236,20 @@ const Lessons = () => {
 
   const handleGeneratePracticeQuiz = async () => {
     if (!selectedLesson) return;
+
+    // REQUIRE at least one material to be selected
+    if (selectedAttachments.size === 0) {
+      setQuizMaterialError(true);
+      return;
+    }
+    setQuizMaterialError(false);
     setGeneratingQuiz(true);
+
     try {
-      const topic = `${courseTitle} - ${selectedLesson.title}`;
-      const res = await aiService.generateQuiz(topic);
+      // Send file URLs to the backend — it reads files from disk and extracts text server-side
+      const fileUrls = Array.from(selectedAttachments);
+      const res = await aiService.quizFromFiles(fileUrls, quizNumQuestions, quizDifficulty);
+
       if (res.result && Array.isArray(res.result)) {
         setQuiz({ _id: "practice", questions: res.result });
         setIsPracticeQuiz(true);
@@ -235,11 +257,15 @@ const Lessons = () => {
         setQuizAnswers([]);
         setQuizSubmitted(false);
         setQuizResult(null);
-        toast.success("AI Practice Quiz generated! ✨");
+        setRevealedAnswers(new Set());
+        toast.success(`AI Practice Quiz generated with ${res.result.length} questions from your materials! ✨`);
+      } else {
+        toast.error("The AI could not generate questions from these materials. Please try a different file.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("AI is unavailable right now. Please try again later.");
+      const msg = e?.response?.data?.error || e?.message || "AI is unavailable right now.";
+      toast.error(msg);
     } finally {
       setGeneratingQuiz(false);
     }
@@ -432,7 +458,13 @@ const Lessons = () => {
                   {selectedLesson.videoUrl && (
                     <div className="rounded-xl overflow-hidden aspect-video bg-black">
                       <iframe
-                        src={selectedLesson.videoUrl}
+                        src={
+                          selectedLesson.videoUrl?.includes("youtube.com/watch?v=") 
+                            ? selectedLesson.videoUrl.replace("watch?v=", "embed/").split("&")[0] 
+                            : selectedLesson.videoUrl?.includes("youtu.be/")
+                            ? selectedLesson.videoUrl.replace("youtu.be/", "youtube.com/embed/").split("?")[0]
+                            : selectedLesson.videoUrl
+                        }
                         className="w-full h-full"
                         allowFullScreen
                         title={selectedLesson.title}
@@ -472,7 +504,7 @@ const Lessons = () => {
                               {attachment.type === "image" && <Image size={20} className="text-green-400" />}
                               {attachment.type === "video" && <Video size={20} className="text-purple-400" />}
                               {attachment.type === "audio" && <Music size={20} className="text-orange-400" />}
-                              {!["pdf", "doc", "image", "video", "audio"].includes(attachment.type) && <File size={20} className="text-gray-400" />}
+                              {!["pdf", "doc", "image", "video", "audio"].includes(attachment.type) && <FileIcon size={20} className="text-gray-400" />}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm group-hover:text-primary transition-colors truncate">
@@ -535,37 +567,60 @@ const Lessons = () => {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        {quiz.questions.map((q, qi) => (
-                          <div key={qi} className="space-y-3">
-                            <p className="font-semibold">{qi + 1}. {q.question}</p>
-                            <div className="grid gap-2">
-                              {q.options.map((opt, oi) => {
-                                const isSelected = quizAnswers[qi] === oi;
-                                const isCorrect = quizSubmitted && oi === q.correctAnswer;
-                                const isWrong = quizSubmitted && isSelected && oi !== q.correctAnswer;
-                                return (
-                                  <button
-                                    key={oi}
-                                    disabled={quizSubmitted}
-                                    onClick={() => {
-                                      const updated = [...quizAnswers];
-                                      updated[qi] = oi;
-                                      setQuizAnswers(updated);
-                                    }}
-                                    className={`p-3 rounded-xl text-left text-sm border transition-all ${isCorrect ? "border-green-500 bg-green-500/10 text-green-300"
-                                      : isWrong ? "border-red-500 bg-red-500/10 text-red-300"
+                        {quiz.questions.map((q, qi) => {
+                          const isRevealed = revealedAnswers.has(qi) || quizSubmitted;
+                          return (
+                            <div key={qi} className="space-y-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                              <p className="font-semibold">{qi + 1}. {q.question}</p>
+                              <div className="grid gap-2">
+                                {q.options.map((opt, oi) => {
+                                  const isSelected = quizAnswers[qi] === oi;
+                                  const isCorrect = isRevealed && oi === q.correctAnswer;
+                                  const isWrong = isRevealed && isSelected && oi !== q.correctAnswer;
+                                  return (
+                                    <button
+                                      key={oi}
+                                      disabled={isRevealed && !isPracticeQuiz} // Only disable if not practice or if already revealed
+                                      onClick={() => {
+                                        if (isRevealed && isPracticeQuiz) return;
+                                        const updated = [...quizAnswers];
+                                        updated[qi] = oi;
+                                        setQuizAnswers(updated);
+                                        
+                                        if (isPracticeQuiz) {
+                                          setRevealedAnswers(prev => new Set(Array.from(prev).concat(qi)));
+                                        }
+                                      }}
+                                      className={`p-3 rounded-xl text-left text-sm border transition-all ${
+                                        isCorrect ? "border-green-500 bg-green-500/10 text-green-300"
+                                        : isWrong ? "border-red-500 bg-red-500/10 text-red-300"
                                         : isSelected ? "border-primary bg-primary/10"
-                                          : "border-white/10 hover:border-white/20 bg-white/5"
+                                        : "border-white/10 hover:border-white/20 bg-white/5"
                                       }`}
+                                    >
+                                      <span className="font-bold mr-2">{String.fromCharCode(65 + oi)}.</span>
+                                      {opt}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {/* Explanation for Practice Quizzes */}
+                              <AnimatePresence>
+                                {isPracticeQuiz && revealedAnswers.has(qi) && q.explanation && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    className="pt-2"
                                   >
-                                    <span className="font-bold mr-2">{String.fromCharCode(65 + oi)}.</span>
-                                    {opt}
-                                  </button>
-                                );
-                              })}
+                                    <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-muted-foreground italic">
+                                      <strong className="text-primary not-italic">Explanation:</strong> {q.explanation}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         {!quizSubmitted ? (
                           <GlassButton
@@ -573,44 +628,183 @@ const Lessons = () => {
                             onClick={handleSubmitQuiz}
                             disabled={quizAnswers.length < quiz.questions.length}
                           >
-                            Submit Quiz
+                            Finish Quiz
                           </GlassButton>
                         ) : (
-                          <div className="space-y-3">
-                            <div className={`text-xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
-                              Score: {quizScore}%
+                          <div className="space-y-4 p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center">
+                            <div className={`text-3xl font-bold ${quizScore >= 80 ? "text-green-400" : "text-orange-400"}`}>
+                              {quizScore}%
                             </div>
                             {quizResult && (
-                              <p className={`text-sm ${quizResult.levelCompleted ? "text-green-400" : "text-orange-400"}`}>
+                              <p className="text-sm text-balance">
                                 {quizResult.message}
                               </p>
                             )}
-                            {quizScore < 80 && (
-                              <GlassButton variant="secondary" size="sm" onClick={() => {
-                                setQuizSubmitted(false);
-                                setQuizAnswers([]);
-                                setQuizScore(0);
-                                setQuizResult(null);
+                            <div className="flex gap-4 justify-center">
+                              {quizScore < 80 && (
+                                <GlassButton variant="secondary" size="sm" onClick={() => {
+                                  setQuizSubmitted(false);
+                                  setQuizAnswers([]);
+                                  setQuizScore(0);
+                                  setQuizResult(null);
+                                  setRevealedAnswers(new Set());
+                                }}>
+                                  Try Again
+                                </GlassButton>
+                              )}
+                              <GlassButton variant="ghost" size="sm" onClick={() => {
+                                setQuiz(null);
+                                setShowQuiz(false);
+                                setIsPracticeQuiz(false);
                               }}>
-                                Try Again (need 80%)
+                                Close
                               </GlassButton>
-                            )}
+                            </div>
                           </div>
                         )}
                       </div>
                     )}
                   </GlassCard>
                 ) : (
-                  <GlassCard className="p-8 text-center flex flex-col items-center justify-center space-y-4">
-                    <Trophy size={48} className="text-primary/30" />
-                    <div>
-                      <h3 className="text-xl font-bold">No formal quiz for this lesson</h3>
-                      <p className="text-muted-foreground text-sm">You can generate an AI practice quiz to test your understanding.</p>
+                  <GlassCard className="p-8 flex flex-col items-center space-y-6">
+                    {/* Header */}
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto mb-3">
+                        <Sparkles size={22} className="text-primary" />
+                      </div>
+                      <h3 className="text-xl font-bold">AI Practice Quiz</h3>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Upload lesson materials for the AI to analyze and generate quiz questions.
+                      </p>
                     </div>
-                    <GlassButton variant="primary" onClick={handleGeneratePracticeQuiz} disabled={generatingQuiz}>
-                      {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles size={16} />}
-                      {generatingQuiz ? " Generating..." : "Generate Practice Quiz"}
-                    </GlassButton>
+
+                    <div className="w-full max-w-sm space-y-5">
+                      {/* Settings row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Questions (5–20)</label>
+                          <select
+                            value={quizNumQuestions}
+                            onChange={(e) => setQuizNumQuestions(Number(e.target.value))}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
+                          >
+                            <option value={5}>5 Questions</option>
+                            <option value={10}>10 Questions</option>
+                            <option value={15}>15 Questions</option>
+                            <option value={20}>20 Questions</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Difficulty</label>
+                          <select
+                            value={quizDifficulty}
+                            onChange={(e) => setQuizDifficulty(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-primary/50 transition-colors"
+                          >
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* REQUIRED: Lesson Material Selection */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1">
+                          <label className="text-[10px] text-muted-foreground uppercase font-bold px-1">Lesson Materials</label>
+                          <span className="text-[10px] text-red-400 font-bold uppercase">* Required</span>
+                        </div>
+
+                        {(() => {
+                          const validMaterials = selectedLesson.attachments?.filter(a => 
+                            a.name.toLowerCase().endsWith('.pdf') || a.type === 'pdf'
+                          ) || [];
+
+                          if (validMaterials.length > 0) {
+                            return (
+                              <div
+                                className={`rounded-2xl border-2 border-dashed p-4 space-y-3 transition-colors ${
+                                  quizMaterialError ? "border-red-500/60 bg-red-500/5" : selectedAttachments.size > 0 ? "border-green-500/40 bg-green-500/5" : "border-white/15 bg-white/5"
+                                }`}
+                              >
+                                <p className="text-[11px] text-muted-foreground">
+                                  Select one or more PDF files the AI will use to generate questions:
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {validMaterials.map((a, i) => (
+                                    <button
+                                      key={i}
+                                      onClick={() => {
+                                        const next = new Set(selectedAttachments);
+                                        if (next.has(a.url)) next.delete(a.url);
+                                        else next.add(a.url);
+                                        setSelectedAttachments(next);
+                                        if (next.size > 0) setQuizMaterialError(false);
+                                      }}
+                                      className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                                        selectedAttachments.has(a.url)
+                                          ? "bg-primary/20 border-primary text-primary font-medium"
+                                          : "bg-white/5 border-white/10 text-muted-foreground hover:border-white/30"
+                                      }`}
+                                    >
+                                      <FileText size={11} />
+                                      {a.name}
+                                      {selectedAttachments.has(a.url) && (
+                                        <CheckCircle2 size={11} className="text-primary" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                                {selectedAttachments.size > 0 && (
+                                  <p className="text-[10px] text-green-400">
+                                    ✓ {selectedAttachments.size} PDF file{selectedAttachments.size > 1 ? "s" : ""} selected
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="rounded-2xl border-2 border-dashed border-orange-500/40 bg-orange-500/5 p-5 text-center space-y-2">
+                                <FileText size={28} className="text-orange-400/60 mx-auto" />
+                                <p className="text-sm text-orange-300 font-medium">No valid PDF materials uploaded</p>
+                                <p className="text-xs text-muted-foreground">
+                                  This lesson has no PDF files. AI quiz generation strictly requires a PDF file.
+                                </p>
+                              </div>
+                            );
+                          }
+                        })()}
+
+                        {/* Validation error */}
+                        <AnimatePresence>
+                          {quizMaterialError && (
+                            <motion.p
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              className="text-xs text-red-400 font-medium px-1 flex items-center gap-1"
+                            >
+                              <XCircle size={12} /> Please select at least one lesson material before generating the quiz.
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Generate button */}
+                      <GlassButton
+                        variant="primary"
+                        className="w-full"
+                        onClick={handleGeneratePracticeQuiz}
+                        disabled={generatingQuiz || extractingAttachments || !selectedLesson.attachments?.length}
+                      >
+                        {generatingQuiz || extractingAttachments ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <Sparkles size={16} className="mr-2" />
+                        )}
+                        {extractingAttachments ? "Reading Materials..." : generatingQuiz ? "Generating Quiz..." : "Generate Quiz from Materials"}
+                      </GlassButton>
+                    </div>
                   </GlassCard>
                 )}
               </motion.div>

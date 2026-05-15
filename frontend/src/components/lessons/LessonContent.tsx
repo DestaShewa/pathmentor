@@ -54,7 +54,13 @@ export const LessonContent = ({
         <GlassCard className="p-0 overflow-hidden">
           <div className="relative aspect-video bg-black">
             <iframe
-              src={lesson.video_url}
+              src={
+                lesson.video_url?.includes("youtube.com/watch?v=") 
+                  ? lesson.video_url.replace("watch?v=", "embed/").split("&")[0] 
+                  : lesson.video_url?.includes("youtu.be/")
+                  ? lesson.video_url.replace("youtu.be/", "youtube.com/embed/").split("?")[0]
+                  : lesson.video_url
+              }
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

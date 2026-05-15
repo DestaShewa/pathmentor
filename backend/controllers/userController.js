@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const asyncHandler = require("../middleware/asyncHandler");
 const { logActivity } = require("../utils/activityLogger");
 const { assignMentor } = require("../utils/assignMentor");
+const emailService = require("../utils/emailService");
 
 const getMyProfile= async (req,res) => {
         res.status(200).json({
@@ -515,6 +516,9 @@ const approveMentor = asyncHandler(async (req, res) => {
       throw new Error("Failed to save mentor approval status");
     }
 
+    // Send Approval Email
+    emailService.sendMentorApprovalEmail(savedMentor);
+
     await logActivity({
       user: mentor._id,
       type: "MENTOR_APPROVED",
@@ -608,6 +612,9 @@ const rejectMentor = asyncHandler(async (req, res) => {
     if (savedMentor.mentorVerification.status !== "rejected") {
       throw new Error("Failed to save mentor rejection status");
     }
+
+    // Send Rejection Email
+    emailService.sendMentorRejectionEmail(savedMentor);
 
     // Reassign all students of this mentor to new mentors (non-blocking)
     const { reassignMentorStudents } = require("../utils/assignMentor");
