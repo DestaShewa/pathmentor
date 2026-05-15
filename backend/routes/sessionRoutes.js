@@ -14,6 +14,8 @@ router.put("/:id/postpone", guard, authorize("mentor"), postponeSession);
 router.put("/:id/rate", guard, authorize("student"), rateSession);
 router.get("/mentor", guard, authorize("mentor"), getMentorSessions);
 router.put("/:id/complete", guard, authorize("mentor"), completeSession);
+router.put("/availability", guard, authorize("mentor"), require("../controllers/sessionController").updateAvailability);
+router.get("/upcoming-reminder", guard, require("../controllers/sessionController").getUpcomingReminder);
 
 // Get single session (for joining the call)
 router.get("/:id", guard, async (req, res) => {

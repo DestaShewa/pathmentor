@@ -42,11 +42,12 @@ GET /api/study-rooms/:id
 */
 const getStudyRoom = asyncHandler(async (req, res) => {
   const room = await StudyRoom.findById(req.params.id)
-    .populate("creator", "name email learningProfile")
-    .populate("participants", "name email learningProfile")
+    .populate("creator", "name email")
+    .populate("participants", "name email profileImage")
     .populate("activeParticipants", "name email")
     .populate("course", "title")
-    .populate("level", "title");
+    .populate("level", "title")
+    .populate("lesson", "title content url");
 
   if (!room) {
     res.status(404);
@@ -72,6 +73,7 @@ const createStudyRoom = asyncHandler(async (req, res) => {
     topic,
     course,
     level,
+    lesson,
     maxParticipants,
     scheduledFor,
     isPublic,
@@ -89,6 +91,7 @@ const createStudyRoom = asyncHandler(async (req, res) => {
     topic,
     course,
     level,
+    lesson,
     creator: req.user._id,
     participants: [req.user._id],
     activeParticipants: [req.user._id],

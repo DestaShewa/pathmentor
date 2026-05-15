@@ -196,28 +196,36 @@ const getMentorAvailability = asyncHandler(async (req, res) => {
     date: { $gte: startOfDay, $lte: endOfDay }
   }).select("date").sort({ date: 1 });
 
-  // Generate available time slots (9 AM - 5 PM, 1-hour slots)
+  // Get mentor's custom availability
+  const workingDays = mentor.availability?.workingDays || [1, 2, 3, 4, 5];
+  const workStart = mentor.availability?.startHour ?? 9;
+  const workEnd = mentor.availability?.endHour ?? 17;
+  
+  // If the mentor doesn't work on this day of the week, return no slots
+  const targetDate = new Date(date);
+  const dayOfWeek = targetDate.getDay(); // 0 is Sunday, 1 is Monday, etc.
+  
   const slots = [];
-  const workStart = 9; // 9 AM
-  const workEnd = 17;  // 5 PM
+  
+  if (workingDays.includes(dayOfWeek)) {
+    for (let hour = workStart; hour < workEnd; hour++) {
+      const slotTime = new Date(date);
+      slotTime.setUTCHours(hour, 0, 0, 0);
 
-  for (let hour = workStart; hour < workEnd; hour++) {
-    const slotTime = new Date(date);
-    slotTime.setHours(hour, 0, 0, 0);
+      // Check if this slot conflicts with any booked session (within 30 min buffer)
+      const thirtyMin = 30 * 60 * 1000;
+      const hasConflict = bookedSessions.some(session => {
+        const sessionTime = new Date(session.date).getTime();
+        const slotTimeMs = slotTime.getTime();
+        return Math.abs(sessionTime - slotTimeMs) < thirtyMin;
+      });
 
-    // Check if this slot conflicts with any booked session (within 30 min buffer)
-    const thirtyMin = 30 * 60 * 1000;
-    const hasConflict = bookedSessions.some(session => {
-      const sessionTime = new Date(session.date).getTime();
-      const slotTimeMs = slotTime.getTime();
-      return Math.abs(sessionTime - slotTimeMs) < thirtyMin;
-    });
-
-    slots.push({
-      time: slotTime.toISOString(),
-      hour: `${hour}:00`,
-      available: !hasConflict && slotTime > new Date() // Also check if in the future
-    });
+      slots.push({
+        time: slotTime.toISOString(),
+        hour: `${hour}:00 UTC`, // Indicated it's UTC based on the backend setup
+        available: !hasConflict && slotTime > new Date() // Also check if in the future
+      });
+    }
   }
 
   res.json({
@@ -328,4 +336,58 @@ const mentorBookSession = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: session });
 });
 
-module.exports = { bookSession, mentorBookSession, getMySessions, getMentorSessions, cancelSession, postponeSession, completeSession, rateSession, getAvailableMentors, getMentorAvailability };
+// GET /api/sessions/upcoming-reminder
+const getUpcomingReminder = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const session = await Session.findOne({
+    $or: [
+      { studentId: req.user._id },
+      { mentorId: req.user._id }
+    ],
+    status: "scheduled",
+    date: { $gte: now, $lte: tomorrow }
+  })
+  .populate("mentorId", "name")
+  .populate("studentId", "name")
+  .sort({ date: 1 });
+
+  res.json({ success: true, data: session });
+});
+
+// PUT /api/sessions/availability
+const updateAvailability = asyncHandler(async (req, res) => {
+  const { workingDays, startHour, endHour, timezone } = req.body;
+  
+  if (req.user.role !== "mentor") {
+    return res.status(403).json({ message: "Only mentors can set availability" });
+  }
+
+  const user = await User.findById(req.user._id);
+  user.availability = {
+    workingDays: workingDays || user.availability?.workingDays || [1, 2, 3, 4, 5],
+    startHour: startHour !== undefined ? startHour : (user.availability?.startHour ?? 9),
+    endHour: endHour !== undefined ? endHour : (user.availability?.endHour ?? 17),
+    timezone: timezone || user.availability?.timezone || "UTC"
+  };
+
+  await user.save();
+  res.json({ success: true, message: "Availability updated", availability: user.availability });
+});
+
+
+module.exports = { 
+  bookSession, 
+  mentorBookSession, 
+  getMySessions, 
+  getMentorSessions, 
+  cancelSession, 
+  postponeSession, 
+  completeSession, 
+  rateSession, 
+  getAvailableMentors, 
+  getMentorAvailability,
+  updateAvailability,
+  getUpcomingReminder
+};

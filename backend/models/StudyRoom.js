@@ -8,25 +8,12 @@ const studyRoomSchema = new mongoose.Schema(
       trim: true
     },
 
-    description: {
-      type: String,
-      default: ""
-    },
-
-    topic: {
-      type: String,
-      required: true
-    },
-
-    course: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Course"
-    },
-
-    level: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Level"
-    },
+    description: { type: String, required: true },
+  topic: { type: String, required: true },
+  course: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
+  level: { type: mongoose.Schema.Types.ObjectId, ref: "Level" },
+  lesson: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
+  tags: [{ type: String }],
 
     creator: {
       type: mongoose.Schema.Types.ObjectId,

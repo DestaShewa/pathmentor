@@ -26,6 +26,8 @@ const findStudyBuddies = asyncHandler(async (req, res) => {
     role: "student",
     onboardingCompleted: true,
     "learningProfile.skillTrack": skillTrack,
+    "learningProfile.experienceLevel": currentUser.learningProfile?.experienceLevel || { $exists: true },
+    "learningProfile.course.id": currentUser.learningProfile?.course?.id || { $exists: true }
   })
     .select("name email learningProfile.skillTrack learningProfile.experienceLevel learningProfile.learningGoal createdAt")
     .limit(20)

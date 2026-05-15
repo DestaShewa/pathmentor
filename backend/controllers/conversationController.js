@@ -31,6 +31,8 @@ exports.getConversations = async (req, res) => {
       return {
         _id: conv._id,
         participant: otherParticipant,
+        name: conv.name, // For groups
+        avatar: conv.avatar, // For groups
         lastMessage: conv.lastMessage,
         lastMessageAt: conv.lastMessageAt,
         unreadCount: conv.unreadCount.get(userId.toString()) || 0,
@@ -58,6 +60,33 @@ exports.getConversations = async (req, res) => {
             isTyping: false,
             type: "direct",
             createdAt: student.createdAt,
+            isVirtual: true
+          });
+        }
+      }
+    }
+
+    // Add Accepted Study Buddies who don't have a conversation yet
+    if (req.user.role === "student") {
+      const acceptedMatches = await Match.find({
+        $or: [{ student1: userId }, { student2: userId }],
+        status: "accepted"
+      }).populate("student1 student2", "name email avatar role learningProfile lastSeen isOnline");
+
+      const existingParticipantIds = new Set(formatted.filter(c => c.participant).map(c => c.participant._id.toString()));
+
+      for (const match of acceptedMatches) {
+        const otherBuddy = match.student1._id.toString() === userId.toString() ? match.student2 : match.student1;
+        if (!existingParticipantIds.has(otherBuddy._id.toString())) {
+          formatted.push({
+            _id: `virtual-${otherBuddy._id}`,
+            participant: otherBuddy,
+            lastMessage: null,
+            lastMessageAt: null,
+            unreadCount: 0,
+            isTyping: false,
+            type: "study_buddy",
+            createdAt: match.updatedAt,
             isVirtual: true
           });
         }

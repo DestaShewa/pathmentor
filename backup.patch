@@ -1,0 +1,451 @@
+diff --git a/backend/controllers/authController.js b/backend/controllers/authController.js
+index 5f12818..b634d9e 100644
+--- a/backend/controllers/authController.js
++++ b/backend/controllers/authController.js
+@@ -33,12 +33,24 @@ const registerUser = async (req, res) => {
+         const salt = await bcrypt.genSalt(10);
+         const hashedPassword = await bcrypt.hash(password, salt);
+ 
+-        const user = await User.create({
++        const userData = {
+             name,
+             email: email.toLowerCase(),
+             password: hashedPassword,
+             role
+-        });
++        };
++
++        // If mentor, save uploaded CV/documents and set status to pending
++        if (role === "mentor") {
++            const uploadedFiles = req.files || [];
++            const uploadedPaths = uploadedFiles.map((file) => `/uploads/mentor-docs/${file.filename}`);
++            userData.mentorVerification = {
++                status: "pending",
++                documents: uploadedPaths,
++            };
++        }
++
++        const user = await User.create(userData);
+ 
+         const token = jwt.sign(
+             { id: user._id, role: user.role },
+diff --git a/backend/controllers/userController.js b/backend/controllers/userController.js
+index 8560798..01917ff 100644
+--- a/backend/controllers/userController.js
++++ b/backend/controllers/userController.js
+@@ -188,6 +188,11 @@ const completeProfile = async (req, res) => {
+       ],
+     };
+ 
++    // Ensure mentor appears in admin's pending queue
++    if (user.role === "mentor" && user.mentorVerification?.status !== "approved") {
++      user.mentorVerification.status = "pending";
++    }
++
+     await user.save();
+ 
+     // Auto-assign a mentor if student doesn't already have one
+@@ -598,9 +603,8 @@ const rejectMentor = asyncHandler(async (req, res) => {
+     mentor.mentorVerification.reviewedAt = new Date();
+     mentor.markModified('mentorVerification'); // Force Mongoose to detect the change
+ 
+-    if (mentor.role === "mentor") {
+-      mentor.role = "student";
+-    }
++    // We do NOT change mentor.role = "student" anymore so they can see their rejected status
++    // on the MentorPendingApproval dashboard.
+ 
+     // Save and verify
+     const savedMentor = await mentor.save();
+diff --git a/backend/routes/authRoutes.js b/backend/routes/authRoutes.js
+index 1945e27..693b1c3 100644
+--- a/backend/routes/authRoutes.js
++++ b/backend/routes/authRoutes.js
+@@ -3,7 +3,7 @@ const router = express.Router();
+ const upload = require("../middleware/uploadMiddleware");
+ const { registerUser, loginUser, forgotPassword, resetPassword } = require("../controllers/authController");
+ 
+-router.post("/register", upload.single("certificate"), registerUser);
++router.post("/register", upload.array("documents", 5), registerUser);
+ router.post("/login", loginUser);
+ router.post("/forgot-password", forgotPassword);
+ router.post("/reset-password", resetPassword);
+diff --git a/backend/routes/mentorRoutes.js b/backend/routes/mentorRoutes.js
+index 6790d11..3f50672 100644
+--- a/backend/routes/mentorRoutes.js
++++ b/backend/routes/mentorRoutes.js
+@@ -103,7 +103,7 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
+       weeklyData
+     });
+   } catch (err) {
+-    console.error("Create project error:", err);
++    console.error("Dashboard error:", err);
+     res.status(500).json({ message: err.message });
+   }
+ });
+@@ -461,7 +461,7 @@ router.post("/projects", guard, authorize("mentor"), async (req, res) => {
+     logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor assigned project "${title}"` }).catch(() => { });
+ 
+     // Notify each assigned student
+-    const { createNotification } = require("./notificationController");
++    const { createNotification } = require("../controllers/notificationController");
+     for (const studentId of assignedTo) {
+       await createNotification({
+         userId: studentId,
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index 4e3f779..3b13a43 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -45,6 +45,7 @@ import MentorAnnouncements from "./pages/mentor/MentorAnnouncements";
+ import MentorProjects from "./pages/mentor/MentorProjects";
+ import MentorSettings from "./pages/mentor/MentorSettings";
+ import MentorChat from "./pages/mentor/MentorChat";
++import MentorSupport from "./pages/mentor/MentorSupport";
+ 
+ // Admin Pages
+ import AdminLayout from "./pages/admin/AdminLayout";
+@@ -135,6 +136,7 @@ const App = () => (
+             <Route path="/mentor/announcements" element={<MentorAnnouncements />} />
+             <Route path="/mentor/projects" element={<MentorProjects />} />
+             <Route path="/mentor/settings" element={<MentorSettings />} />
++            <Route path="/mentor/support" element={<MentorSupport />} />
+ 
+             {/* MENTOR CLASSES */}
+             <Route path="/mentor/classes" element={<MentorClasses />} />
+diff --git a/frontend/src/components/mentor/MentorSidebar.tsx b/frontend/src/components/mentor/MentorSidebar.tsx
+index 239c2ec..391a5a1 100644
+--- a/frontend/src/components/mentor/MentorSidebar.tsx
++++ b/frontend/src/components/mentor/MentorSidebar.tsx
+@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
+ import {
+   LayoutDashboard, BookOpen, BarChart3, Upload,
+   ClipboardList, Calendar, Users, HelpCircle,
+-  ChevronLeft, LogOut, Settings, Bell, FolderKanban, MessageSquare
++  ChevronLeft, LogOut, Settings, Bell, FolderKanban, MessageSquare, Ticket
+ } from "lucide-react";
+ import { cn } from "@/lib/utils";
+ 
+@@ -18,6 +18,7 @@ const navItems = [
+   { icon: Calendar,        label: "Sessions",       path: "/mentor/sessions" },
+   { icon: MessageSquare,   label: "Messages",       path: "/mentor/chat" },
+   { icon: Bell,            label: "Announcements",  path: "/mentor/announcements" },
++  { icon: Ticket,          label: "Support",         path: "/mentor/support" },
+   { icon: Settings,        label: "Settings",       path: "/mentor/settings" },
+ ];
+ 
+diff --git a/frontend/src/pages/Auth.tsx b/frontend/src/pages/Auth.tsx
+index 472eadb..c23184c 100644
+--- a/frontend/src/pages/Auth.tsx
++++ b/frontend/src/pages/Auth.tsx
+@@ -76,19 +76,37 @@ const Auth = () => {
+   try {
+     const endpoint = isLogin ? "/auth/login" : "/auth/register";
+ 
+-    const payload = isLogin
+-      ? {
+-          email: formData.email,
+-          password: formData.password,
+-        }
+-      : {
+-          name: formData.name,
+-          email: formData.email,
+-          password: formData.password,
+-          role: formData.role,
+-        };
+-
+-    const res = await api.post(endpoint, payload);
++    let res;
++
++    if (isLogin) {
++      // Login: simple JSON
++      res = await api.post(endpoint, {
++        email: formData.email,
++        password: formData.password,
++      });
++    } else if (formData.role === "mentor" && cvFile) {
++      // Mentor registration with CV: use FormData
++      const fd = new FormData();
++      fd.append("name", formData.name);
++      fd.append("email", formData.email);
++      fd.append("password", formData.password);
++      fd.append("role", formData.role);
++      fd.append("documents", cvFile);
++      if (additionalFile) {
++        fd.append("documents", additionalFile);
++      }
++      res = await api.post(endpoint, fd, {
++        headers: { "Content-Type": "multipart/form-data" },
++      });
++    } else {
++      // Student or mentor without CV: JSON
++      res = await api.post(endpoint, {
++        name: formData.name,
++        email: formData.email,
++        password: formData.password,
++        role: formData.role,
++      });
++    }
+ 
+     const { token, user } = res.data;
+ 
+@@ -109,14 +127,11 @@ const Auth = () => {
+     // ✅ Proper Role-Based Navigation
+     if (user.role === "mentor") {
+       const status = user.mentorVerification?.status?.toLowerCase().trim();
+-      // Only redirect to pending if explicitly "pending"
+-      // null, undefined, "approved" all go to dashboard
+-      if (status === "pending") {
+-        navigate("/mentor/pending");
+-      } else if (status === "rejected") {
+-        navigate("/mentor/pending"); // show rejection status
+-      } else {
++      if (status === "approved") {
+         navigate("/mentor/dashboard");
++      } else {
++        // pending, rejected, null, undefined → all go to pending page
++        navigate("/mentor/pending");
+       }
+     } else if (user.role === "admin") {
+       navigate("/admin/dashboard");
+diff --git a/frontend/src/pages/mentor/MentorAnnouncements.tsx b/frontend/src/pages/mentor/MentorAnnouncements.tsx
+index 1dae42d..04ef0ca 100644
+--- a/frontend/src/pages/mentor/MentorAnnouncements.tsx
++++ b/frontend/src/pages/mentor/MentorAnnouncements.tsx
+@@ -68,8 +68,10 @@ const MentorAnnouncements = () => {
+         api.get("/users/profile"),
+         api.get("/announcements")
+       ]);
+-      if (profileRes.data.user.role !== "mentor") { navigate("/dashboard"); return; }
+-      setUser(profileRes.data.user);
++      const userData = profileRes.data.user;
++      if (userData.role !== "mentor") { navigate("/dashboard"); return; }
++      if (userData.mentorVerification?.status !== "approved") { navigate("/mentor/pending"); return; }
++      setUser(userData);
+       setAnnouncements(annRes.data.data || []);
+     } catch (e: any) {
+       if (e?.response?.status === 401) navigate("/auth");
+diff --git a/frontend/src/pages/mentor/MentorChat.tsx b/frontend/src/pages/mentor/MentorChat.tsx
+index 21ef9ef..864e755 100644
+--- a/frontend/src/pages/mentor/MentorChat.tsx
++++ b/frontend/src/pages/mentor/MentorChat.tsx
+@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
+ import { useNavigate } from "react-router-dom";
+ import { motion } from "framer-motion";
+ import api from "@/services/api";
++import { disconnectSocket } from "@/services/socket";
+ import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
+ import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
+ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
+@@ -40,6 +41,10 @@ const MentorChat = () => {
+         navigate("/dashboard");
+         return;
+       }
++      if (userData.mentorVerification?.status !== "approved") {
++        navigate("/mentor/pending");
++        return;
++      }
+ 
+       setUser(userData);
+     } catch (err) {
+@@ -52,6 +57,7 @@ const MentorChat = () => {
+ 
+   const handleSignOut = () => {
+     localStorage.removeItem("token");
++    disconnectSocket();
+     navigate("/auth");
+   };
+ 
+diff --git a/frontend/src/pages/mentor/MentorDashboard.tsx b/frontend/src/pages/mentor/MentorDashboard.tsx
+index 8c58fa9..c1277d7 100644
+--- a/frontend/src/pages/mentor/MentorDashboard.tsx
++++ b/frontend/src/pages/mentor/MentorDashboard.tsx
+@@ -62,6 +62,11 @@ const MentorDashboard = () => {
+         navigate("/dashboard");
+         return;
+       }
++      // Redirect unapproved mentors to pending page
++      if (userData.mentorVerification?.status !== "approved") {
++        navigate("/mentor/pending");
++        return;
++      }
+       setUser(userData);
+ 
+       try {
+diff --git a/frontend/src/pages/mentor/MentorPendingApproval.tsx b/frontend/src/pages/mentor/MentorPendingApproval.tsx
+index ee80ece..e41378d 100644
+--- a/frontend/src/pages/mentor/MentorPendingApproval.tsx
++++ b/frontend/src/pages/mentor/MentorPendingApproval.tsx
+@@ -22,11 +22,11 @@ import {
+ const MentorPendingDashboard = () => {
+   const navigate = useNavigate();
+ 
+-  // Sidebar removed for pending approval page
++  const [sidebarOpen, setSidebarOpen] = useState(false);
+   const [loading, setLoading] = useState(true);
+ 
+   const [mentor, setMentor] = useState<any>(null);
+-  const [isEditing, setIsEditing] = useState(true);
++  const [isEditing, setIsEditing] = useState(false);
+   const [applicationData, setApplicationData] = useState({
+     skillTrack: "",
+     experienceLevel: "",
+@@ -129,6 +129,33 @@ const MentorPendingDashboard = () => {
+     event.preventDefault();
+     setApplicationError("");
+     setApplicationSuccess("");
++
++    // Required field validation
++    if (!applicationData.skillTrack.trim()) {
++      setApplicationError("Expertise Track is required.");
++      return;
++    }
++    if (!applicationData.experienceLevel.trim()) {
++      setApplicationError("Experience Level is required.");
++      return;
++    }
++    if (!applicationData.commitmentTime.trim()) {
++      setApplicationError("Availability is required.");
++      return;
++    }
++    if (!applicationData.learningGoal.trim()) {
++      setApplicationError("Mentor Goal is required.");
++      return;
++    }
++    if (!applicationData.personalGoal.trim()) {
++      setApplicationError("Personal Mission is required.");
++      return;
++    }
++    if (!applicationData.recommendation.trim()) {
++      setApplicationError("Please explain why you should be a mentor.");
++      return;
++    }
++
+     setSavingApplication(true);
+ 
+     try {
+@@ -424,7 +451,7 @@ const MentorPendingDashboard = () => {
+                 Upload CV / Certificates
+                 <input
+                   type="file"
+-                  accept="application/pdf"
++                  accept=".pdf,.doc,.docx"
+                   multiple
+                   onChange={handleDocumentSelection}
+                   disabled={!isEditing}
+diff --git a/frontend/src/pages/mentor/MentorProjects.tsx b/frontend/src/pages/mentor/MentorProjects.tsx
+index 7c0fa11..a7b8065 100644
+--- a/frontend/src/pages/mentor/MentorProjects.tsx
++++ b/frontend/src/pages/mentor/MentorProjects.tsx
+@@ -97,12 +97,17 @@ const MentorProjects = () => {
+         api.get("/mentor/my-students")
+       ]);
+ 
+-      if (profileRes.data.user.role !== "mentor") {
++      const userData = profileRes.data.user;
++      if (userData.role !== "mentor") {
+         navigate("/dashboard");
+         return;
+       }
++      if (userData.mentorVerification?.status !== "approved") {
++        navigate("/mentor/pending");
++        return;
++      }
+ 
+-      setUser(profileRes.data.user);
++      setUser(userData);
+       setProjects(projectsRes.data.data || []);
+       setStudents(studentsRes.data.data || []);
+     } catch (e: any) {
+diff --git a/frontend/src/pages/mentor/MentorReviewQueue.tsx b/frontend/src/pages/mentor/MentorReviewQueue.tsx
+index 9dbdc41..d74689a 100644
+--- a/frontend/src/pages/mentor/MentorReviewQueue.tsx
++++ b/frontend/src/pages/mentor/MentorReviewQueue.tsx
+@@ -64,8 +64,10 @@ const MentorReviewQueue = () => {
+         api.get("/users/profile"),
+         api.get("/mentor/review-queue")
+       ]);
+-      if (profileRes.data.user.role !== "mentor") { navigate("/dashboard"); return; }
+-      setUser(profileRes.data.user);
++      const userData = profileRes.data.user;
++      if (userData.role !== "mentor") { navigate("/dashboard"); return; }
++      if (userData.mentorVerification?.status !== "approved") { navigate("/mentor/pending"); return; }
++      setUser(userData);
+       setItems(queueRes.data.data || []);
+     } catch (e: any) {
+       setError(e?.response?.data?.message || "Failed to load review queue");
+diff --git a/frontend/src/pages/mentor/MentorSessions.tsx b/frontend/src/pages/mentor/MentorSessions.tsx
+index 81e3bf2..1af2150 100644
+--- a/frontend/src/pages/mentor/MentorSessions.tsx
++++ b/frontend/src/pages/mentor/MentorSessions.tsx
+@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
+ import { useNavigate } from "react-router-dom";
+ import { motion, AnimatePresence } from "framer-motion";
+ import api from "@/services/api";
++import { disconnectSocket } from "@/services/socket";
+ import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
+ import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
+ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
+@@ -78,6 +79,12 @@ const MentorSessions = () => {
+     const token = localStorage.getItem("token");
+     if (!token) { navigate("/auth"); return; }
+     fetchData();
++
++    // Auto-refresh countdown every 60 seconds
++    const interval = setInterval(() => {
++      setSessions(prev => [...prev]); // force re-render for countdown
++    }, 60000);
++    return () => clearInterval(interval);
+   }, [navigate]);
+ 
+   const fetchData = async () => {
+@@ -88,8 +95,10 @@ const MentorSessions = () => {
+         api.get("/mentor/sessions"),
+         api.get("/mentor/my-students")
+       ]);
+-      if (profileRes.data.user.role !== "mentor") { navigate("/dashboard"); return; }
+-      setUser(profileRes.data.user);
++      const userData = profileRes.data.user;
++      if (userData.role !== "mentor") { navigate("/dashboard"); return; }
++      if (userData.mentorVerification?.status !== "approved") { navigate("/mentor/pending"); return; }
++      setUser(userData);
+       setSessions(sessionsRes.data.data || []);
+       setAssignedStudents(studentsRes.data.data || []);
+     } catch (e: any) {
+@@ -197,7 +206,7 @@ const MentorSessions = () => {
+     return `In ${hours}h ${minutesUntil % 60}m`;
+   };
+ 
+-  const handleSignOut = () => { localStorage.removeItem("token"); navigate("/auth"); };
++  const handleSignOut = () => { localStorage.removeItem("token"); disconnectSocket(); navigate("/auth"); };
+ 
+   if (loading) return (
+     <div className="min-h-screen bg-background flex items-center justify-center">
+diff --git a/frontend/src/pages/mentor/MentorSettings.tsx b/frontend/src/pages/mentor/MentorSettings.tsx
+index 7d0540a..5850ab8 100644
+--- a/frontend/src/pages/mentor/MentorSettings.tsx
++++ b/frontend/src/pages/mentor/MentorSettings.tsx
+@@ -69,6 +69,7 @@ const MentorSettings = () => {
+       const res = await api.get("/users/profile");
+       const u = res.data.user;
+       if (u.role !== "mentor") { navigate("/dashboard"); return; }
++      if (u.mentorVerification?.status !== "approved") { navigate("/mentor/pending"); return; }
+       setUser(u);
+       setName(u.name || "");
+       setSkillTrack(u.learningProfile?.skillTrack || "");
+diff --git a/frontend/src/pages/mentor/MyClasses.tsx b/frontend/src/pages/mentor/MyClasses.tsx
+index 6cd0201..e1ed0b0 100644
+--- a/frontend/src/pages/mentor/MyClasses.tsx
++++ b/frontend/src/pages/mentor/MyClasses.tsx
+@@ -46,8 +46,10 @@ const MyClasses = () => {
+         api.get("/users/profile"),
+         api.get("/mentor/my-courses")
+       ]);
+-      if (profileRes.data.user.role !== "mentor") { navigate("/dashboard"); return; }
+-      setUser(profileRes.data.user);
++      const userData = profileRes.data.user;
++      if (userData.role !== "mentor") { navigate("/dashboard"); return; }
++      if (userData.mentorVerification?.status !== "approved") { navigate("/mentor/pending"); return; }
++      setUser(userData);
+       setCourses(coursesRes.data.data || []);
+     } catch (e: any) {
+       if (e?.response?.status === 401) {

@@ -128,6 +128,23 @@ const assignMentor = async (student) => {
   await User.findByIdAndUpdate(student._id, { assignedMentor: best._id });
   await User.findByIdAndUpdate(best._id, { $inc: { studentCount: 1 } });
 
+  // Create/ensure conversation between student and assigned mentor
+  try {
+    const Conversation = require("../models/Conversation");
+    const existing = await Conversation.findOne({
+      participants: { $all: [student._id, best._id] },
+      isGroup: false
+    });
+    if (!existing) {
+      await Conversation.create({
+        participants: [student._id, best._id],
+        isGroup: false
+      });
+    }
+  } catch (err) {
+    console.error("assignMentor: failed to create conversation", err.message);
+  }
+
   return best;
 };
 
