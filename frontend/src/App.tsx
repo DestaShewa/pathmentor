@@ -88,16 +88,22 @@ import ProfileSettings from "./pages/admin/settings/ProfileSettings";
 import AdminAnnouncements from "./pages/admin/announcements/AdminAnnouncements";
 import AdminLeaderboard from "./pages/admin/leaderboard/AdminLeaderboard";
 
+import AuthGuard from "./components/auth/AuthGuard";
+import useInactivityLogout from "./hooks/useInactivityLogout";
+
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ErrorBoundary>
-        <Toaster />
-        <Sonner />
+const App = () => {
+  // Global inactivity tracking (20 mins)
+  useInactivityLogout(20);
 
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <ErrorBoundary>
+          <Toaster />
+          <Sonner />
+
           <Routes>
             {/* PUBLIC */}
             <Route path="/" element={<Index />} />
@@ -105,98 +111,77 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* STUDENT */}
-            <Route path="/roadmap" element={<Roadmap />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/onboarding-persona" element={<OnboardingPersona />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/courses" element={<BrowseCourses />} />
-            <Route path="/lessons" element={<Lessons />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/achievements" element={<Achievements />} />
-            <Route path="/announcements" element={<Announcements />} />
-            <Route path="/study-buddies" element={<StudyBuddies />} />
-            <Route path="/social-chat" element={<SocialChat />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/sessions/:id" element={<SessionDetail />} />
-            <Route path="/room/:id" element={<VideoRoom />} />
-            <Route path="/projects" element={<StudentProjects />} />
-            <Route path="/study-rooms" element={<StudyRooms />} />
-            <Route path="/study-rooms/:id" element={<StudyRoomDetail />} />
-            <Route path="/progress" element={<ProgressPage />} />
-            <Route path="/support" element={<SupportPage />} />
+            {/* STUDENT DASHBOARD - Protected */}
+            <Route path="/dashboard" element={<AuthGuard allowedRoles={["student"]}><Dashboard /></AuthGuard>} />
+            <Route path="/onboarding-persona" element={<AuthGuard allowedRoles={["student"]}><OnboardingPersona /></AuthGuard>} />
+            <Route path="/roadmap" element={<AuthGuard allowedRoles={["student"]}><Roadmap /></AuthGuard>} />
+            <Route path="/profile" element={<AuthGuard allowedRoles={["student", "mentor", "admin"]}><ProfilePage /></AuthGuard>} />
+            <Route path="/settings" element={<AuthGuard allowedRoles={["student", "mentor", "admin"]}><Settings /></AuthGuard>} />
+            <Route path="/courses" element={<AuthGuard allowedRoles={["student"]}><BrowseCourses /></AuthGuard>} />
+            <Route path="/lessons" element={<AuthGuard allowedRoles={["student"]}><Lessons /></AuthGuard>} />
+            <Route path="/leaderboard" element={<AuthGuard allowedRoles={["student", "mentor", "admin"]}><Leaderboard /></AuthGuard>} />
+            <Route path="/achievements" element={<AuthGuard allowedRoles={["student"]}><Achievements /></AuthGuard>} />
+            <Route path="/announcements" element={<AuthGuard allowedRoles={["student", "mentor"]}><Announcements /></AuthGuard>} />
+            <Route path="/study-buddies" element={<AuthGuard allowedRoles={["student"]}><StudyBuddies /></AuthGuard>} />
+            <Route path="/social-chat" element={<AuthGuard allowedRoles={["student", "mentor"]}><SocialChat /></AuthGuard>} />
+            <Route path="/sessions" element={<AuthGuard allowedRoles={["student"]}><Sessions /></AuthGuard>} />
+            <Route path="/sessions/:id" element={<AuthGuard allowedRoles={["student", "mentor"]}><SessionDetail /></AuthGuard>} />
+            <Route path="/room/:id" element={<AuthGuard allowedRoles={["student", "mentor"]}><VideoRoom /></AuthGuard>} />
+            <Route path="/projects" element={<AuthGuard allowedRoles={["student"]}><StudentProjects /></AuthGuard>} />
+            <Route path="/dashboard" element={<AuthGuard allowedRoles={["student"]}><Dashboard /></AuthGuard>} />
+            <Route path="/study-rooms" element={<AuthGuard allowedRoles={["student"]}><StudyRooms /></AuthGuard>} />
+            <Route path="/study-rooms/:id" element={<AuthGuard allowedRoles={["student"]}><StudyRoomDetail /></AuthGuard>} />
+            <Route path="/progress" element={<AuthGuard allowedRoles={["student"]}><ProgressPage /></AuthGuard>} />
+            <Route path="/support" element={<AuthGuard allowedRoles={["student", "mentor"]}><SupportPage /></AuthGuard>} />
 
-            {/* MENTOR */}
-            <Route path="/mentor/pending" element={<MentorPendingApproval />} />
-            <Route path="/mentor/dashboard" element={<MentorDashboard />} />
-            <Route path="/mentor/task/:id" element={<MentorTaskBuilder />} />
-            <Route path="/mentor/review" element={<MentorReviewQueue />} />
-            <Route path="/mentor/sessions" element={<MentorSessions />} />
-            <Route path="/mentor/chat" element={<MentorChat />} />
-            <Route path="/mentor/announcements" element={<MentorAnnouncements />} />
-            <Route path="/mentor/projects" element={<MentorProjects />} />
-            <Route path="/mentor/settings" element={<MentorSettings />} />
+            {/* MENTOR DASHBOARD - Protected */}
+            <Route path="/mentor/pending" element={<AuthGuard allowedRoles={["mentor"]}><MentorPendingApproval /></AuthGuard>} />
+            <Route path="/mentor/dashboard" element={<AuthGuard allowedRoles={["mentor"]}><MentorDashboard /></AuthGuard>} />
+            <Route path="/mentor/task/:id" element={<AuthGuard allowedRoles={["mentor"]}><MentorTaskBuilder /></AuthGuard>} />
+            <Route path="/mentor/review" element={<AuthGuard allowedRoles={["mentor"]}><MentorReviewQueue /></AuthGuard>} />
+            <Route path="/mentor/sessions" element={<AuthGuard allowedRoles={["mentor"]}><MentorSessions /></AuthGuard>} />
+            <Route path="/mentor/chat" element={<AuthGuard allowedRoles={["mentor"]}><MentorChat /></AuthGuard>} />
+            <Route path="/mentor/announcements" element={<AuthGuard allowedRoles={["mentor"]}><MentorAnnouncements /></AuthGuard>} />
+            <Route path="/mentor/projects" element={<AuthGuard allowedRoles={["mentor"]}><MentorProjects /></AuthGuard>} />
+            <Route path="/mentor/settings" element={<AuthGuard allowedRoles={["mentor"]}><MentorSettings /></AuthGuard>} />
+            <Route path="/mentor/classes" element={<AuthGuard allowedRoles={["mentor"]}><MentorClasses /></AuthGuard>} />
+            <Route path="/mentor/class/:id" element={<AuthGuard allowedRoles={["mentor"]}><MentorClassDetails /></AuthGuard>} />
+            <Route path="/mentor/upload/:id" element={<AuthGuard allowedRoles={["mentor"]}><ClassUpload /></AuthGuard>} />
+            <Route path="/mentor/analysis/:id" element={<AuthGuard allowedRoles={["mentor"]}><MentorCourseAnalysis /></AuthGuard>} />
 
-            {/* MENTOR CLASSES */}
-            <Route path="/mentor/classes" element={<MentorClasses />} />
-            <Route path="/mentor/class/:id" element={<MentorClassDetails />} />
-            <Route path="/mentor/upload/:id" element={<ClassUpload />} />
-
-            {/* ANALYSIS PAGE */}
-            <Route path="/mentor/analysis/:id" element={<MentorCourseAnalysis />} />
-
-
-
-            {/* ADMIN */}
-            <Route path="/admin" element={<AdminLayout />}>
+            {/* ADMIN DASHBOARD - Protected */}
+            <Route path="/admin" element={<AuthGuard allowedRoles={["admin"]}><AdminLayout /></AuthGuard>}>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="activities" element={<Activities />} />
-
-              {/* Mentors */}
               <Route path="mentors" element={<AllMentors />} />
               <Route path="applications" element={<MentorApplications />} />
               <Route path="performance" element={<MentorPerformance />} />
               <Route path="mentor-reviews" element={<MentorReviews />} />
-
-              {/* Students */}
               <Route path="allstudents" element={<AllStudents />} />
               <Route path="enrollments" element={<StudentEnrollments />} />
               <Route path="progress" element={<StudentProgress />} />
               <Route path="grades" element={<GradesStatus />} />
               <Route path="reports" element={<StudentReports />} />
-
-              {/* Courses */}
               <Route path="all-courses" element={<AdminCourses />} />
               <Route path="categories" element={<AdminCategories />} />
               <Route path="lessons" element={<AdminLessons />} />
               <Route path="reviews" element={<AdminReviews />} />
               <Route path="assignments" element={<AdminAssignments />} />
-
-              {/* Chats */}
               <Route path="user-chat" element={<AdminChatPage />} />
               <Route path="tickets" element={<SupportTickets />} />
-
-              {/* Feedback */}
               <Route path="feedback" element={<AllFeedback />} />
-
-              {/* Settings */}
               <Route path="settings/profile" element={<ProfileSettings />} />
               <Route path="settings/system" element={<SystemSettings />} />
-
-              {/* Announcements & Leaderboard */}
               <Route path="announcements" element={<AdminAnnouncements />} />
               <Route path="leaderboard" element={<AdminLeaderboard />} />
             </Route>
 
-            {/* 404 */}
-            <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </ErrorBoundary>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        </ErrorBoundary>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

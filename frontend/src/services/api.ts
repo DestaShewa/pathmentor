@@ -17,4 +17,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// 🚪 Handle unauthorized responses (token expired/invalid)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clear token and redirect to login
+      localStorage.removeItem("token");
+      
+      // Use window.location for a hard redirect if not in a React context
+      // but usually this will be caught by the interceptor during a request
+      if (window.location.pathname !== "/auth") {
+        window.location.href = "/auth?session=expired";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

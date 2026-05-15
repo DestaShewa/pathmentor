@@ -11,33 +11,45 @@ const guard = async (req, res, next) => {
     ) {
         try {
             token = req.headers.authorization.split(" ")[1];
-            // verify token
+            
+            // Verify token
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-            // GET USER FROM DATABASE 
+            // Fetch user
             req.user = await User.findById(decoded.id).select("-password");
 
             if (!req.user) {
                 return res.status(401).json({
-                    message: "User no longer exists"
+                    success: false,
+                    message: "User account no longer exists or has been deactivated"
                 });
             }
 
             next();
 
         } catch (error) {
-            console.error("Token verification failed ", error);
+            console.error("Token verification failed:", error.message);
+            
+            if (error.name === "TokenExpiredError") {
+                return res.status(401).json({
+                    success: false,
+                    message: "Session expired. Please log in again."
+                });
+            }
+
             return res.status(401).json({
-                message: "Unauthoriized token"
+                success: false,
+                message: "Invalid authentication token"
             });
         }
     }
 
     if (!token) {
         return res.status(401).json({
-            message: "no token"
+            success: false,
+            message: "Authentication required. Please log in."
         });
-    };
+    }
 }
 
 // role-based access 
