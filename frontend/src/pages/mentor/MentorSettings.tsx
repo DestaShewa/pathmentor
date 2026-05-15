@@ -10,8 +10,8 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/context/ThemeContext";
 import {
-  User, Key, Bell, Monitor, Save, Eye, EyeOff,
-  Shield, LogOut, ChevronRight, Sun, Moon
+  User, Key, Bell, Monitor, Save, Eye, EyeOff, Camera,
+  Shield, LogOut, ChevronRight, Sun, Moon, Calendar
 } from "lucide-react";
 
 const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
@@ -37,7 +37,9 @@ const MentorSettings = () => {
   const [experienceLevel, setExperienceLevel] = useState("");
   const [commitmentTime, setCommitmentTime]   = useState("");
   const [bio, setBio]                 = useState("");
+  const [avatar, setAvatar]           = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Availability form
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
@@ -82,6 +84,7 @@ const MentorSettings = () => {
       setExperienceLevel(u.learningProfile?.experienceLevel || "");
       setCommitmentTime(u.learningProfile?.commitmentTime || "");
       setBio(u.learningProfile?.personalGoal || "");
+      setAvatar(u.avatarUrl || null);
       
       if (u.availability) {
         setWorkingDays(u.availability.workingDays || [1, 2, 3, 4, 5]);
@@ -93,12 +96,30 @@ const MentorSettings = () => {
     finally { setLoading(false); }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    setUploadingAvatar(true);
+    try {
+      const res = await api.post("/users/upload-avatar", formData);
+      setAvatar(res.data.avatarUrl);
+      setUser((prev: any) => ({ ...prev, avatarUrl: res.data.avatarUrl }));
+      toast({ title: "Avatar updated!" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.response?.data?.message || "Error", variant: "destructive" });
+    } finally { setUploadingAvatar(false); }
+  };
+
   const handleSaveProfile = async () => {
     if (!name.trim()) { toast({ title: "Error", description: "Name is required", variant: "destructive" }); return; }
     setSavingProfile(true);
     try {
-      await api.put("/mentor/profile", { name: name.trim(), skillTrack, experienceLevel, commitmentTime, bio });
-      setUser((p: any) => ({ ...p, name: name.trim() }));
+      const res = await api.put("/mentor/profile", { name: name.trim(), skillTrack, experienceLevel, commitmentTime, bio });
+      setUser(res.data.user); // Update with the full user object from response
       toast({ title: "Profile updated!" });
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed", variant: "destructive" });
@@ -108,7 +129,8 @@ const MentorSettings = () => {
   const handleSaveAvailability = async () => {
     setSavingAvailability(true);
     try {
-      await api.put("/sessions/availability", { workingDays, startHour, endHour, timezone });
+      const res = await api.put("/sessions/availability", { workingDays, startHour, endHour, timezone });
+      setUser((prev: any) => ({ ...prev, availability: res.data.availability }));
       toast({ title: "Working hours updated!" });
     } catch (e: any) {
       toast({ title: "Error", description: e.response?.data?.message || "Failed to update availability", variant: "destructive" });
@@ -145,7 +167,7 @@ const MentorSettings = () => {
   return (
     <div className="min-h-screen relative bg-background text-white">
       <ParticlesBackground />
-      <DashboardTopNav userName={user?.name || "Mentor"} userEmail={user?.email || ""} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <DashboardTopNav userName={user?.name || "Mentor"} userEmail={user?.email || ""} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} role="mentor" avatarUrl={user?.avatarUrl} />
       <MentorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} userName={user?.name} userEmail={user?.email} onSignOut={handleSignOut} />
 
       <main className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-2xl mx-auto transition-all duration-300 ${sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"}`}>
@@ -164,15 +186,29 @@ const MentorSettings = () => {
               <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Profile</h2>
             </div>
             <GlassCard className="overflow-hidden divide-y divide-white/5">
-              {/* Avatar */}
-              <div className="px-5 py-5 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-xl font-bold text-black shrink-0">
-                  {user?.name?.[0]?.toUpperCase()}
+              {/* Avatar Upload */}
+              <div className="px-5 py-6 flex flex-col items-center border-b border-white/5">
+                <div className="relative group mb-3">
+                  <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-3xl font-bold text-black shrink-0 overflow-hidden border-2 border-white/10 shadow-2xl">
+                    {avatar ? (
+                      <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      user?.name?.[0]?.toUpperCase()
+                    )}
+                  </div>
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl cursor-pointer">
+                    <Camera className="w-8 h-8 text-white" />
+                    <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                  </label>
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] rounded-3xl">
+                      <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="font-bold text-foreground">{user?.name}</p>
-                  <p className="text-sm text-muted-foreground">{user?.email}</p>
-                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full mt-1 inline-block">Mentor</span>
+                <div className="text-center">
+                  <p className="font-bold text-lg text-foreground">{user?.name}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full mt-1 inline-block">Mentor Portal</p>
                 </div>
               </div>
 
@@ -258,7 +294,16 @@ const MentorSettings = () => {
                   <select value={timezone} onChange={e => setTimezone(e.target.value)}
                     className="w-full p-3 rounded-xl bg-gray-900 border border-white/10 text-foreground focus:outline-none focus:border-primary">
                     <option value="UTC">UTC (Default)</option>
-                    {/* Simplified for demo, could add full timezone list */}
+                    <option value="America/New_York">Eastern Time (ET)</option>
+                    <option value="America/Chicago">Central Time (CT)</option>
+                    <option value="America/Denver">Mountain Time (MT)</option>
+                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET/CEST)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Asia/Kolkata">Mumbai (IST)</option>
+                    <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
                   </select>
                 </div>
                 <GlassButton variant="primary" onClick={handleSaveAvailability} disabled={savingAvailability} className="w-full">

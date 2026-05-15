@@ -162,6 +162,67 @@ exports.getOrCreateConversation = async (req, res) => {
   }
 };
 
+// Create a group conversation
+exports.createGroup = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { name, participantIds } = req.body;
+
+    if (!name || !participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
+      return res.status(400).json({ message: "Name and participantIds are required" });
+    }
+
+    // Add creator to participants
+    const participants = [...new Set([...participantIds, userId.toString()])];
+
+    // Check if all participants exist
+    const users = await User.find({ _id: { $in: participants } });
+    if (users.length !== participants.length) {
+      return res.status(404).json({ message: "One or more users not found" });
+    }
+
+    // Create conversation
+    const conversation = new Conversation({
+      participants,
+      name,
+      type: "group",
+      unreadCount: participants.reduce((acc, p) => {
+        acc[p] = 0;
+        return acc;
+      }, {})
+    });
+
+    await conversation.save();
+    await conversation.populate("participants", "name email avatar role isOnline");
+
+    // Emit socket event to all participants
+    const io = req.app.get("io");
+    if (io) {
+      for (const pId of participants) {
+        io.to(`user:${pId}`).emit("conversation_updated", {
+          conversationId: conversation._id,
+          type: "group",
+          name: conversation.name
+        });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      conversation: {
+        _id: conversation._id,
+        name: conversation.name,
+        participants: conversation.participants,
+        type: conversation.type,
+        createdAt: conversation.createdAt
+      }
+    });
+  } catch (error) {
+    console.error("Create group error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Get messages for a conversation
 exports.getMessages = async (req, res) => {
   try {

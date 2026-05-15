@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, BookOpen, BarChart3, Upload,
+  LayoutDashboard, BookOpen, TrendingUp, Upload,
   ClipboardList, Calendar, Users, HelpCircle,
   ChevronLeft, LogOut, Settings, Bell, FolderKanban, MessageSquare
 } from "lucide-react";
@@ -11,12 +11,11 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",      path: "/mentor/dashboard" },
   { icon: BookOpen,        label: "My Classes",     path: "/mentor/classes" },
-  { icon: Upload,          label: "Upload Content", path: "/mentor/upload/general" },
-  { icon: HelpCircle,      label: "Quiz Builder",   path: "/mentor/task/general" },
   { icon: FolderKanban,    label: "Projects",       path: "/mentor/projects" },
-  { icon: ClipboardList,   label: "Review Queue",   path: "/mentor/review" },
+  { icon: ClipboardList,   label: "Grading Center", path: "/mentor/review" },
   { icon: Calendar,        label: "Sessions",       path: "/mentor/sessions" },
-  { icon: MessageSquare,   label: "Messages",       path: "/mentor/chat" },
+  { icon: MessageSquare,   label: "Student Messages", path: "/social-chat" },
+  { icon: TrendingUp,      label: "Student Performance", path: "/mentor/performance" },
   { icon: Bell,            label: "Announcements",  path: "/mentor/announcements" },
   { icon: Settings,        label: "Settings",       path: "/mentor/settings" },
 ];

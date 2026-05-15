@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { User, Menu, Sparkles, Settings, Save, Camera, X, LogOut } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import {
   DropdownMenu,
@@ -26,6 +26,8 @@ interface DashboardTopNavProps {
   userEmail: string;
   onSignOut: () => void;
   onMenuToggle: () => void;
+  role?: string;
+  avatarUrl?: string | null;
 }
 
 export const DashboardTopNav = ({
@@ -33,14 +35,22 @@ export const DashboardTopNav = ({
   userEmail,
   onSignOut,
   onMenuToggle,
+  role = "student",
+  avatarUrl = null
 }: DashboardTopNavProps) => {
   const [aiActive] = useState(true);
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Profile State
   const [editName, setEditName] = useState(userName);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImage, setProfileImage] = useState<string | null>(avatarUrl);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync profileImage with avatarUrl prop
+  useEffect(() => {
+    setProfileImage(avatarUrl);
+  }, [avatarUrl]);
 
   // Handle Image Upload Logic
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,7 +66,7 @@ export const DashboardTopNav = ({
 
   const handleSaveProfile = () => {
     setIsSaving(true);
-    // Simulate API call
+    // Simulate API call for students, but mentors should use their own settings
     setTimeout(() => {
       setIsSaving(false);
       console.log("Profile Saved:", { name: editName, image: profileImage });
@@ -130,12 +140,18 @@ export const DashboardTopNav = ({
                 
                 <DropdownMenuSeparator className="bg-foreground/10" />
                 
-                {/* Modal Trigger */}
-                <DialogTrigger asChild>
-                  <DropdownMenuItem className="cursor-pointer flex items-center gap-2">
+                {/* Modal Trigger for students, Navigation for mentors */}
+                {role === "mentor" ? (
+                  <DropdownMenuItem onClick={() => navigate("/mentor/settings")} className="cursor-pointer flex items-center gap-2">
                     <Settings className="w-4 h-4" /> Edit Profile
                   </DropdownMenuItem>
-                </DialogTrigger>
+                ) : (
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem className="cursor-pointer flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Edit Profile
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                )}
                
                 <DropdownMenuSeparator className="bg-foreground/10" />
                 <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive cursor-pointer flex items-center gap-2">

@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Send, UserCircle2, MoreVertical, Phone, Video,
   Hash, Paperclip, X, Mic, VideoOff, PhoneOff, 
-  Image as ImageIcon, FileText, Users, ChevronLeft, Loader2
+  Image as ImageIcon, FileText, Users, ChevronLeft, Loader2, MessageCircle
 } from "lucide-react";
 import { DashboardTopNav } from "@/components/dashboard/DashboardTopNav";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
 import { handleSidebarNav } from "@/lib/navHelper";
 import { useNavigate } from "react-router-dom";
@@ -79,7 +81,6 @@ const SocialChat = () => {
 
   // --- Logic ---
   
-  // Initial data fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -98,20 +99,14 @@ const SocialChat = () => {
     };
     fetchData();
 
-    // Socket initialization
     const socket = initSocket();
     if (socket) {
       socketRef.current = socket;
-      
       socket.on("new_message", (data: { conversationId: string; message: Message }) => {
-        // If we're looking at this conversation, add the message
         if (selectedConversationId === data.conversationId) {
           setMessages(prev => [...prev, data.message]);
-          // Mark as read immediately if active
           api.post(`/conversations/${data.conversationId}/read`).catch(() => {});
         }
-        
-        // Update conversation list
         setConversations(prev => prev.map(conv => {
           if (conv._id === data.conversationId) {
             return {
@@ -128,21 +123,15 @@ const SocialChat = () => {
           return conv;
         }));
       });
-
-      socket.on("conversation_updated", (data: any) => {
-        // Handle generic updates if needed
-      });
     }
 
     return () => {
       if (socketRef.current) {
         socketRef.current.off("new_message");
-        socketRef.current.off("conversation_updated");
       }
     };
   }, [selectedConversationId]);
 
-  // Fetch messages when conversation selected
   useEffect(() => {
     if (!selectedConversationId || selectedConversationId.startsWith("virtual-")) {
       setMessages([]);
@@ -154,13 +143,9 @@ const SocialChat = () => {
       try {
         const res = await api.get(`/conversations/${selectedConversationId}/messages`);
         setMessages(res.data.messages);
-        
-        // Join socket room
         if (socketRef.current) {
           socketRef.current.emit("join_conversation", { conversationId: selectedConversationId });
         }
-
-        // Reset unread locally
         setConversations(prev => prev.map(c => 
           c._id === selectedConversationId ? { ...c, unreadCount: 0 } : c
         ));
@@ -180,7 +165,6 @@ const SocialChat = () => {
     };
   }, [selectedConversationId]);
 
-  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -192,10 +176,8 @@ const SocialChat = () => {
     if ((!messageText.trim() && !previewMedia) || !selectedConversationId) return;
 
     let targetConvId = selectedConversationId;
-
     setSending(true);
     try {
-      // If it's a virtual conversation, create it first
       if (selectedConversationId.startsWith("virtual-")) {
         const participantId = selectedConversationId.replace("virtual-", "");
         const res = await api.post("/conversations", { otherUserId: participantId });
@@ -210,16 +192,12 @@ const SocialChat = () => {
 
       const formData = new FormData();
       formData.append("message", messageText.trim());
-      if (previewMedia) {
-        formData.append("attachments", previewMedia.file);
-      }
+      if (previewMedia) formData.append("attachments", previewMedia.file);
 
-      const res = await api.post(`/conversations/${targetConvId}/messages`, formData, {
+      await api.post(`/conversations/${targetConvId}/messages`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // UI will be updated via socket, but we can optimistically update or rely on socket
-      // For now, let the socket handle it for consistency, but reset input
       setMessageText("");
       setPreviewMedia(null);
     } catch (err) {
@@ -245,53 +223,67 @@ const SocialChat = () => {
   });
 
   const activeConversation = conversations.find((c) => c._id === selectedConversationId);
-
+  const isMentor = user?.role === "mentor";
 
   return (
-    <div className="min-h-screen relative bg-background text-white flex flex-col">
+    <div className="min-h-screen relative bg-background text-white flex flex-col overflow-hidden">
       <ParticlesBackground />
       <DashboardTopNav 
         userName={user?.name || "Learner"} 
         userEmail={user?.email || ""} 
         onSignOut={() => { localStorage.removeItem("token"); navigate("/auth"); }} 
         onMenuToggle={() => setSidebarOpen(!sidebarOpen)} 
+        role={user?.role}
+        avatarUrl={user?.avatarUrl}
       />
       
-      <DashboardSidebar 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-        isCollapsed={sidebarCollapsed} 
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} 
-        activeView="socialchat" 
-        onViewChange={(v) => handleSidebarNav(v, navigate)} 
-      />
+      {isMentor ? (
+        <MentorSidebar 
+          isOpen={sidebarOpen} 
+          onClose={() => setSidebarOpen(false)} 
+          isCollapsed={sidebarCollapsed} 
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} 
+          userName={user?.name}
+          userEmail={user?.email}
+          onSignOut={() => { localStorage.removeItem("token"); navigate("/auth"); }}
+        />
+      ) : (
+        <DashboardSidebar 
+          isOpen={sidebarOpen} 
+          onClose={() => setSidebarOpen(false)} 
+          isCollapsed={sidebarCollapsed} 
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} 
+          activeView="socialchat" 
+          onViewChange={(v) => handleSidebarNav(v, navigate)} 
+        />
+      )}
 
       <main className={`flex-1 relative z-10 pt-20 transition-all duration-300 ${sidebarCollapsed ? "lg:pl-24" : "lg:pl-72"}`}>
-        <div className="h-[calc(100vh-5rem)] p-4 md:p-6">
+        <div className="h-[calc(100vh-5rem)] p-4 md:p-6 overflow-hidden">
           <div className="relative flex flex-col lg:flex-row h-full w-full min-h-0 gap-4">
       
       {/* SIDEBAR */}
-      <GlassCard className="w-full lg:w-80 flex flex-col p-4 backdrop-blur-xl bg-white/5 border-white/10 shrink-0">
+      <GlassCard className="w-full lg:w-80 flex flex-col p-4 backdrop-blur-2xl bg-white/5 border-white/10 shrink-0">
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full bg-secondary/30 rounded-full py-2 pl-10 pr-4 outline-none text-sm focus:ring-2 ring-purple-500/40 transition"
+            className="w-full bg-foreground/5 rounded-2xl py-2.5 pl-10 pr-4 outline-none text-sm border border-white/5 focus:border-primary/50 transition"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         {/* Categories Tab Selector */}
-        <div className="flex gap-1 mb-4 bg-black/20 p-1 rounded-lg">
+        <div className="flex gap-1 mb-4 bg-black/20 p-1 rounded-xl">
           {["all", "user", "group"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
               className={cn(
-                "flex-1 py-1 rounded-md text-[10px] font-bold uppercase transition-all",
-                activeTab === tab ? "bg-purple-600 text-white shadow-lg" : "text-muted-foreground hover:text-white"
+                "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
+                activeTab === tab ? "bg-gradient-to-r from-primary to-secondary text-black shadow-lg" : "text-muted-foreground hover:text-white"
               )}
             >
               {tab === "user" ? "Contacts" : tab}
@@ -300,10 +292,10 @@ const SocialChat = () => {
         </div>
 
         {/* Contact List */}
-        <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-none">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-50">
-              <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
               <span className="text-[10px] uppercase tracking-widest font-bold">Loading chats...</span>
             </div>
           ) : filteredConversations.length > 0 ? (
@@ -316,7 +308,7 @@ const SocialChat = () => {
                 if (section.length === 0) return null;
                 return (
                   <div key={type} className="mb-4">
-                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2 mb-2">
+                    <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2 mb-2 opacity-60">
                       {type === "group" ? "Groups" : "Contacts"}
                     </h3>
                     {section.map((conv) => (
@@ -324,37 +316,43 @@ const SocialChat = () => {
                         key={conv._id}
                         onClick={() => setSelectedConversationId(conv._id)}
                         className={cn(
-                          "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group relative",
-                          selectedConversationId === conv._id ? "bg-purple-600/20 border-purple-500/30" : "hover:bg-white/5"
+                          "w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-300 group relative mb-1",
+                          selectedConversationId === conv._id ? "bg-primary/20 border border-primary/20" : "hover:bg-white/5 border border-transparent"
                         )}
                       >
                         <div className="relative">
-                          <div className={cn("text-purple-400", selectedConversationId === conv._id ? "text-white" : "")}>
-                            {conv.type === 'group' ? <Users size={24}/> : (
+                          <div className={cn("text-primary", selectedConversationId === conv._id ? "text-white" : "")}>
+                            {conv.type === 'group' ? (
+                              <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
+                                <Users size={20}/>
+                              </div>
+                            ) : (
                               conv.participant?.avatar ? 
-                              <img src={conv.participant.avatar} className="w-10 h-10 rounded-full object-cover" /> :
-                              <UserCircle2 size={40}/>
+                              <img src={conv.participant.avatar} className="w-10 h-10 rounded-2xl object-cover" /> :
+                              <div className="w-10 h-10 rounded-2xl bg-secondary/20 flex items-center justify-center">
+                                <UserCircle2 size={24}/>
+                              </div>
                             )}
                           </div>
                           {conv.participant?.isOnline && (
-                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-black rounded-full" />
+                            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-secondary border-2 border-[#0B0B0F] rounded-full shadow-lg" />
                           )}
                         </div>
                         <div className="text-left min-w-0 flex-1">
                           <div className="flex justify-between items-start">
-                            <p className="text-sm font-semibold truncate">{conv.participant?.name || "Unknown User"}</p>
+                            <p className="text-sm font-semibold truncate text-foreground/90">{conv.participant?.name || "Unknown User"}</p>
                             {conv.lastMessageAt && (
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              <span className="text-[9px] text-muted-foreground/60 font-medium whitespace-nowrap ml-2">
                                 {new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] opacity-70 truncate">
+                          <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
                             {conv.lastMessage ? conv.lastMessage.message : conv.participant?.role || "Contact"}
                           </p>
                         </div>
                         {conv.unreadCount > 0 && (
-                          <span className="bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                          <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-lg min-w-[18px] text-center shadow-lg shadow-primary/20">
                             {conv.unreadCount}
                           </span>
                         )}
@@ -365,104 +363,139 @@ const SocialChat = () => {
               })}
             </>
           ) : (
-            <div className="text-center py-10 text-muted-foreground text-xs">No results found</div>
+            <div className="text-center py-10 text-muted-foreground text-xs opacity-50">No results found</div>
           )}
         </div>
       </GlassCard>
 
       {/* CHAT AREA */}
-      <GlassCard className="flex-1 flex flex-col min-h-0 overflow-hidden backdrop-blur-xl bg-white/5 border-white/10 relative">
+      <GlassCard className="flex-1 flex flex-col min-h-0 overflow-hidden backdrop-blur-2xl bg-white/5 border-white/10 relative">
         {activeConversation ? (
           <>
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-3">
-                <div className="lg:hidden" onClick={() => setSelectedConversationId(null)}><ChevronLeft size={20}/></div>
-                <div className="text-purple-400">
-                   {activeConversation.type === 'group' ? <Users size={24}/> : (
+            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md">
+              <div className="flex items-center gap-4">
+                <div className="lg:hidden cursor-pointer hover:text-primary transition" onClick={() => setSelectedConversationId(null)}><ChevronLeft size={20}/></div>
+                <div className="text-primary">
+                   {activeConversation.type === 'group' ? (
+                      <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center">
+                        <Users size={20}/>
+                      </div>
+                    ) : (
                       activeConversation.participant?.avatar ? 
-                      <img src={activeConversation.participant.avatar} className="w-8 h-8 rounded-full object-cover" /> :
-                      <UserCircle2 size={32}/>
+                      <img src={activeConversation.participant.avatar} className="w-10 h-10 rounded-2xl object-cover" /> :
+                      <div className="w-10 h-10 rounded-2xl bg-secondary/20 flex items-center justify-center">
+                        <UserCircle2 size={24}/>
+                      </div>
                    )}
                 </div>
                 <div>
-                  <h2 className="font-bold text-sm">{activeConversation.participant?.name || "Unknown User"}</h2>
-                  <p className={cn("text-[10px]", activeConversation.participant?.isOnline ? "text-green-400" : "text-muted-foreground")}>
-                    {activeConversation.participant?.isOnline ? "Online" : activeConversation.participant?.lastSeen ? `Last seen ${new Date(activeConversation.participant.lastSeen).toLocaleDateString()}` : "Offline"}
-                  </p>
+                  <h2 className="font-bold text-sm text-foreground/90">{activeConversation.participant?.name || "Unknown User"}</h2>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <div className={cn("w-1.5 h-1.5 rounded-full", activeConversation.participant?.isOnline ? "bg-secondary animate-pulse" : "bg-muted-foreground/40")} />
+                    <p className="text-[10px] font-medium text-muted-foreground">
+                      {activeConversation.participant?.isOnline ? "Active Now" : activeConversation.participant?.lastSeen ? `Last seen ${new Date(activeConversation.participant.lastSeen).toLocaleDateString()}` : "Offline"}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-muted-foreground">
-                <Phone size={18} className="cursor-pointer hover:text-white transition" />
-                <Video size={20} className="cursor-pointer hover:text-purple-400 transition" onClick={() => setIsCalling(true)} />
-                <MoreVertical size={18} className="cursor-pointer hover:text-white transition" />
+              <div className="flex items-center gap-5 text-muted-foreground">
+                <button className="p-2 hover:bg-white/5 rounded-xl transition hover:text-foreground">
+                  <Phone size={18} />
+                </button>
+                <button className="p-2 hover:bg-primary/20 rounded-xl transition hover:text-primary" onClick={() => setIsCalling(true)}>
+                  <Video size={20} />
+                </button>
+                <button className="p-2 hover:bg-white/5 rounded-xl transition hover:text-foreground">
+                  <MoreVertical size={18} />
+                </button>
               </div>
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-black/10">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-none bg-black/5">
               {messagesLoading ? (
-                <div className="flex flex-col items-center justify-center h-full opacity-50 gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-[10px] uppercase font-bold tracking-widest">Fetching messages...</span>
+                <div className="flex flex-col items-center justify-center h-full opacity-50 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  <span className="text-[10px] uppercase font-bold tracking-widest">Fetching history...</span>
                 </div>
               ) : messages.length > 0 ? (
-                messages.map((msg) => (
-                  <div key={msg._id} className={cn("flex max-w-[85%] flex-col", msg.sender._id === user?._id ? "ml-auto items-end" : "items-start")}>
-                    {activeConversation.type === 'group' && msg.sender._id !== user?._id && (
-                      <span className="text-[10px] text-muted-foreground mb-1 ml-2">{msg.sender.name}</span>
-                    )}
-                    <div className={cn("p-3 rounded-2xl shadow-xl relative group", msg.sender._id === user?._id ? "bg-purple-600 rounded-tr-none text-white" : "bg-white/10 rounded-tl-none border border-white/5")}>
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="mb-2 space-y-2">
-                          {msg.attachments.map((att, idx) => (
-                            <div key={idx} className="p-2 bg-black/20 rounded-lg flex items-center gap-2 border border-white/10 max-w-[200px]">
-                              {att.type === 'image' ? <ImageIcon size={14}/> : <FileText size={14}/>}
-                              <a href={`http://localhost:5001${att.url}`} target="_blank" rel="noreferrer" className="text-[10px] truncate hover:underline">
-                                {att.filename}
-                              </a>
+                messages.map((msg) => {
+                  const isOwn = msg.sender._id === user?._id;
+                  return (
+                    <div key={msg._id} className={cn("flex w-full", isOwn ? "justify-end" : "justify-start")}>
+                      <div className={cn("flex flex-col max-w-[75%]", isOwn ? "items-end" : "items-start")}>
+                        {activeConversation.type === 'group' && !isOwn && (
+                          <span className="text-[10px] font-bold text-muted-foreground/60 mb-1.5 ml-2 uppercase tracking-wider">{msg.sender.name}</span>
+                        )}
+                        <div className={cn(
+                          "p-4 rounded-3xl shadow-2xl relative group transition-all duration-300",
+                          isOwn 
+                            ? "bg-gradient-to-br from-primary to-primary/80 rounded-tr-none text-black font-medium" 
+                            : "bg-white/5 rounded-tl-none border border-white/10 text-foreground/90 backdrop-blur-md"
+                        )}>
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="mb-3 space-y-2">
+                              {msg.attachments.map((att, idx) => (
+                                <div key={idx} className={cn(
+                                  "p-2.5 rounded-2xl flex items-center gap-3 border max-w-[240px] transition-colors",
+                                  isOwn ? "bg-black/10 border-black/5" : "bg-white/5 border-white/10"
+                                )}>
+                                  <div className={cn("p-2 rounded-xl", isOwn ? "bg-black/20" : "bg-primary/20 text-primary")}>
+                                    {att.type === 'image' ? <ImageIcon size={16}/> : <FileText size={16}/>}
+                                  </div>
+                                  <a href={`http://localhost:5001${att.url}`} target="_blank" rel="noreferrer" className="text-[11px] font-bold truncate hover:underline underline-offset-4">
+                                    {att.filename}
+                                  </a>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
+                          <p className="text-[13px] leading-relaxed break-words">{msg.message}</p>
+                          <div className={cn("flex items-center gap-1.5 mt-2 opacity-50", isOwn ? "justify-end" : "justify-start")}>
+                            <span className="text-[9px] font-bold">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {isOwn && <div className="w-1 h-1 rounded-full bg-black/40" />}
+                          </div>
                         </div>
-                      )}
-                      <p className="text-sm leading-relaxed">{msg.message}</p>
-                      <span className={cn("text-[9px] mt-1 block opacity-60", msg.sender._id === user?._id ? "text-purple-100" : "text-muted-foreground")}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div className="flex flex-col items-center justify-center h-full opacity-30 gap-3">
-                  <div className="p-4 rounded-full bg-white/5 border border-white/10">
-                    <Hash size={32} />
+                <div className="flex flex-col items-center justify-center h-full opacity-30 gap-4">
+                  <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
+                    <Hash size={24} className="text-primary" />
                   </div>
-                  <p className="text-xs font-bold uppercase tracking-widest">No messages yet</p>
-                  <p className="text-[10px] text-center max-w-[200px]">Start the conversation by typing a message below.</p>
+                  <div className="text-center">
+                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] mb-1">Channel Empty</p>
+                    <p className="text-[10px] text-muted-foreground font-medium">Send a message to break the ice.</p>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Input */}
-            <div className="p-4 bg-white/5 border-t border-white/10">
+            {/* Input Area */}
+            <div className="p-6 bg-white/5 border-t border-white/10 backdrop-blur-xl">
               {previewMedia && (
-                <div className="mb-3 flex items-center justify-between p-2 rounded-xl bg-purple-600/20 border border-purple-500/30 animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-purple-600 rounded-lg">
-                       {previewMedia.type.includes('image') ? <ImageIcon size={16}/> : <FileText size={16}/>}
+                <div className="mb-4 flex items-center justify-between p-3 rounded-2xl bg-primary/10 border border-primary/20 animate-in fade-in slide-in-from-bottom-3 duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center text-primary">
+                       {previewMedia.type.includes('image') ? <ImageIcon size={20}/> : <FileText size={20}/>}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold truncate max-w-[200px]">{previewMedia.name}</p>
-                      <p className="text-[9px] opacity-60 uppercase">{(previewMedia.file.size / 1024).toFixed(1)} KB</p>
+                      <p className="text-[11px] font-extrabold truncate max-w-[200px] text-foreground">{previewMedia.name}</p>
+                      <p className="text-[9px] font-bold text-primary uppercase tracking-tighter">{(previewMedia.file.size / 1024).toFixed(1)} KB Ready</p>
                     </div>
                   </div>
-                  <button onClick={() => setPreviewMedia(null)} className="p-1 hover:bg-white/10 rounded-full transition">
-                    <X size={14} />
+                  <button onClick={() => setPreviewMedia(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-muted-foreground hover:text-foreground">
+                    <X size={16} />
                   </button>
                 </div>
               )}
               
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-foreground/5 p-1.5 rounded-[2rem] border border-white/10 focus-within:border-primary/40 transition-all duration-300">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -472,7 +505,7 @@ const SocialChat = () => {
                 <button 
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-muted-foreground hover:text-white transition rounded-full hover:bg-white/5"
+                  className="p-3 text-muted-foreground hover:text-primary transition-all rounded-full hover:bg-primary/10"
                 >
                   <Paperclip size={20} />
                 </button>
@@ -481,48 +514,51 @@ const SocialChat = () => {
                     type="text"
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
-                    placeholder="Type a message..."
-                    className="w-full bg-secondary/30 rounded-full py-2.5 px-4 outline-none text-sm focus:ring-2 ring-purple-500/40 transition placeholder:text-muted-foreground/50"
+                    placeholder="Message..."
+                    className="w-full bg-transparent py-3 px-2 outline-none text-sm placeholder:text-muted-foreground/30 font-medium"
                   />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                    <Mic size={16} className="text-muted-foreground cursor-pointer hover:text-white" />
-                  </div>
                 </div>
                 <button
                   type="submit"
                   disabled={(!messageText.trim() && !previewMedia) || sending}
                   className={cn(
-                    "p-2.5 rounded-full transition-all flex items-center justify-center",
+                    "w-11 h-11 rounded-full transition-all flex items-center justify-center shadow-xl",
                     messageText.trim() || previewMedia
-                      ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30 hover:scale-105 active:scale-95" 
-                      : "bg-white/5 text-muted-foreground"
+                      ? "bg-primary text-black hover:scale-105 active:scale-95 shadow-primary/20" 
+                      : "bg-white/5 text-muted-foreground/30"
                   )}
                 >
-                  {sending ? <Loader2 size={20} className="animate-spin"/> : <Send size={20} />}
+                  {sending ? <Loader2 size={20} className="animate-spin"/> : <Send size={18} className="ml-0.5" />}
                 </button>
               </form>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6 shadow-2xl">
-              <Users size={40} className="text-purple-400 opacity-50" />
-            </div>
-            <h2 className="text-xl font-bold mb-2">Social Community</h2>
-            <p className="text-sm text-muted-foreground max-w-sm mb-8 leading-relaxed">
-              Connect with mentors, study buddies, and peers across different tracks. 
-              Select a conversation to start messaging.
-            </p>
-            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left">
-                <Hash size={18} className="text-purple-400 mb-2" />
-                <p className="text-xs font-bold mb-1">Study Groups</p>
-                <p className="text-[10px] text-muted-foreground">Join collaborative spaces for your track.</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-black/10">
+            <div className="relative mb-10">
+              <div className="absolute inset-0 blur-3xl bg-primary/20 rounded-full" />
+              <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center shadow-2xl relative z-10 backdrop-blur-sm">
+                <MessageCircle size={40} className="text-primary" />
               </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-left">
-                <UserCircle2 size={18} className="text-purple-400 mb-2" />
-                <p className="text-xs font-bold mb-1">Peer Matching</p>
-                <p className="text-[10px] text-muted-foreground">Direct message with your matched buddies.</p>
+            </div>
+            <h2 className="text-2xl font-black mb-3 tracking-tight">Social Hub</h2>
+            <p className="text-sm text-muted-foreground max-w-xs mb-10 leading-relaxed font-medium">
+              Join the conversation with the community. Select a contact or group to begin.
+            </p>
+            <div className="flex gap-4 w-full max-w-sm">
+              <div className="flex-1 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-left hover:bg-white/10 transition-colors">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                  <Hash size={20} className="text-primary" />
+                </div>
+                <p className="text-xs font-extrabold mb-1 uppercase tracking-wider">Tracks</p>
+                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">Collaborate in specialized groups.</p>
+              </div>
+              <div className="flex-1 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-left hover:bg-white/10 transition-colors">
+                <div className="w-10 h-10 rounded-2xl bg-secondary/10 flex items-center justify-center mb-4">
+                  <UserCircle2 size={20} className="text-secondary" />
+                </div>
+                <p className="text-xs font-extrabold mb-1 uppercase tracking-wider">Buddies</p>
+                <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">Personal guidance and support.</p>
               </div>
             </div>
           </div>
@@ -532,30 +568,37 @@ const SocialChat = () => {
         </div>
       </main>
       
-      {/* CALL MODAL (STILL MOCK FOR NOW) */}
+      {/* CALL MODAL */}
       {isCalling && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-radial from-primary/10 to-transparent opacity-50" />
           <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md flex flex-col items-center"
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="w-full max-w-md flex flex-col items-center relative z-10"
           >
-            <div className="w-24 h-24 rounded-full bg-purple-600 mb-6 flex items-center justify-center animate-pulse">
-               <UserCircle2 size={64}/>
+            <div className="relative mb-8">
+              <div className="absolute inset-0 blur-3xl bg-primary/30 rounded-full animate-pulse" />
+              <div className="w-28 h-28 rounded-[3rem] bg-primary flex items-center justify-center text-black relative z-10 shadow-2xl">
+                 <UserCircle2 size={64}/>
+              </div>
             </div>
-            <h2 className="text-2xl font-bold mb-1">{activeConversation?.participant?.name}</h2>
-            <p className="text-purple-400 mb-12 uppercase tracking-widest text-xs font-bold">Calling...</p>
+            <h2 className="text-3xl font-black mb-1 tracking-tighter">{activeConversation?.participant?.name}</h2>
+            <div className="flex items-center gap-2 mb-16">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
+              <p className="text-primary uppercase tracking-[0.3em] text-[10px] font-black">Establishing Connection</p>
+            </div>
             
-            <div className="flex gap-6">
-              <button className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition">
+            <div className="flex gap-8">
+              <button className="w-16 h-16 rounded-[2rem] bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all border border-white/10 backdrop-blur-xl">
                 <Mic size={24} />
               </button>
-              <button className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition">
+              <button className="w-16 h-16 rounded-[2rem] bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all border border-white/10 backdrop-blur-xl">
                 <VideoOff size={24} />
               </button>
               <button 
                 onClick={() => setIsCalling(false)}
-                className="w-14 h-14 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 transition shadow-lg shadow-red-500/40"
+                className="w-16 h-16 rounded-[2rem] bg-red-500/80 flex items-center justify-center hover:bg-red-500 transition-all shadow-2xl shadow-red-500/40 text-white"
               >
                 <PhoneOff size={24} />
               </button>

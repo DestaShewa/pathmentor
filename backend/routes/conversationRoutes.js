@@ -13,6 +13,9 @@ router.get("/", conversationCtrl.getConversations);
 // Get or create conversation with another user
 router.post("/", conversationCtrl.getOrCreateConversation);
 
+// Create a group conversation
+router.post("/group", conversationCtrl.createGroup);
+
 // Get messages for a conversation
 router.get("/:conversationId/messages", conversationCtrl.getMessages);
 

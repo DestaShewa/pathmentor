@@ -175,44 +175,55 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
           return (
             <motion.div
               key={msg._id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.2 }}
-              className={`flex gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ 
+                type: "spring",
+                stiffness: 400,
+                damping: 30
+              }}
+              className={`flex gap-4 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
             >
-              {/* Avatar */}
+              {/* Premium Avatar */}
               {showAvatar ? (
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isOwn ? "bg-primary/20 text-primary" : "bg-white/10 text-white"
+                  className={`w-11 h-11 rounded-[14px] flex items-center justify-center shrink-0 shadow-2xl relative group/avatar ${isOwn 
+                    ? "bg-primary/10 text-primary border border-primary/30" 
+                    : "bg-white/5 text-white border border-white/10 backdrop-blur-md"
                     }`}
                 >
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover/avatar:opacity-100 transition-opacity rounded-[14px]" />
                   {msg.sender ? (
-                    <span className="text-xs font-bold">
+                    <span className="text-sm font-black relative z-10">
                       {msg.sender.name[0]?.toUpperCase()}
                     </span>
                   ) : (
-                    <User size={14} />
+                    <User size={18} className="relative z-10" />
+                  )}
+                  {/* Status dot in avatar for received messages */}
+                  {!isOwn && msg.sender?.isOnline && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-[#050810] shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
                   )}
                 </div>
               ) : (
-                <div className="w-8 shrink-0" />
+                <div className="w-11 shrink-0" />
               )}
 
-              {/* Message bubble */}
-              <div className={`max-w-[70%] ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+              {/* Message content */}
+              <div className={`max-w-[80%] ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
                 {showAvatar && msg.sender && (
-                  <div className={`flex items-center gap-2 mb-1 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                    <span className="text-xs text-muted-foreground">
-                      {isOwn ? "You" : msg.sender.name}
+                  <div className={`flex items-center gap-2.5 mb-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                      {isOwn ? "Authorized Source" : msg.sender.name}
                     </span>
                     {msg.sender.role && (
                       <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${msg.sender.role === "admin"
-                            ? "bg-red-500/20 text-red-400"
+                        className={`text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest ${msg.sender.role === "admin"
+                            ? "bg-red-500/10 text-red-500 border border-red-500/20"
                             : msg.sender.role === "mentor"
-                              ? "bg-purple-500/20 text-purple-400"
-                              : "bg-blue-500/20 text-blue-400"
+                              ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_10px_rgba(20,255,236,0.1)]"
+                              : "bg-blue-500/10 text-blue-500 border border-blue-500/20"
                           }`}
                       >
                         {msg.sender.role}
@@ -222,23 +233,25 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
                 )}
 
                 <div
-                  className={`rounded-2xl ${isOwn
-                      ? "bg-primary text-black rounded-br-sm"
-                      : "bg-white/10 text-white rounded-bl-sm"
-                    } ${!msg.message && hasAttachments ? "bg-transparent p-0" : "px-4 py-2"}`}
+                  className={`rounded-[22px] shadow-2xl relative group/bubble ${isOwn
+                      ? "bg-primary text-black rounded-tr-none font-bold"
+                      : "bg-white/[0.03] text-white rounded-tl-none border border-white/10 backdrop-blur-xl"
+                    } ${!msg.message && hasAttachments ? "bg-transparent p-0 border-none shadow-none" : "px-5 py-3.5"}`}
                 >
+                  {isOwn && <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50 rounded-[22px] rounded-tr-none pointer-events-none" />}
+                  
                   {msg.message && (
-                    <p className="text-sm break-words whitespace-pre-wrap">
+                    <p className="text-[13.5px] break-words whitespace-pre-wrap leading-[1.6] tracking-tight relative z-10">
                       {msg.message}
                       {msg.isEdited && (
-                        <span className="text-[10px] opacity-60 ml-2">(edited)</span>
+                        <span className="text-[9px] opacity-40 ml-2 italic font-black uppercase tracking-tighter">(MODIFIED)</span>
                       )}
                     </p>
                   )}
 
                   {/* Attachments */}
                   {hasAttachments && (
-                    <div className="space-y-2">
+                    <div className="space-y-3 mt-2 relative z-10">
                       {msg.attachments!.map((attachment, i) => (
                         <AttachmentPreview key={i} attachment={attachment} />
                       ))}
@@ -246,12 +259,20 @@ export const MessageList = ({ messages, currentUserId }: MessageListProps) => {
                   )}
                 </div>
 
-                <span className="text-[10px] text-muted-foreground mt-1">
-                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
+                <div className={`flex items-center gap-2 mt-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                    {new Date(msg.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                  {isOwn && (
+                    <div className="flex gap-0.5">
+                      <div className="w-1 h-1 rounded-full bg-primary/40" />
+                      <div className="w-1 h-1 rounded-full bg-primary/40" />
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           );

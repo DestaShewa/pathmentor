@@ -103,7 +103,7 @@ router.get("/dashboard", guard, authorize("mentor"), async (req, res) => {
       weeklyData
     });
   } catch (err) {
-    console.error("Create project error:", err);
+    console.error("Mentor dashboard error:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -235,37 +235,75 @@ router.get("/course/:courseId/analysis", guard, authorize("mentor"), async (req,
   }
 });
 
-/* ── REVIEW QUEUE (quiz scores for mentor's courses) ─────── */
+/* ── UNIFIED REVIEW QUEUE (Quizzes + Projects) ─────────── */
 router.get("/review-queue", guard, authorize("mentor"), async (req, res) => {
   try {
     const courses = await Course.find({ instructor: req.user._id });
     const courseIds = courses.map(c => c._id);
 
+    // 1. Fetch Quiz Progress
     const allProgress = await Progress.find({ course: { $in: courseIds } })
       .populate("user", "name email")
       .populate("course", "title")
       .sort({ updatedAt: -1 });
 
-    const rows = [];
+    const quizRows = [];
     for (const p of allProgress) {
+      if (!p.user) continue; // Skip if user deleted
       for (const lp of p.levelsProgress) {
         if (lp.score > 0) {
           const level = await Level.findById(lp.level).select("title order");
-          rows.push({
+          quizRows.push({
+            type: "quiz",
             student: p.user,
             course: p.course,
             level: level ? `${level.title} (Level ${level.order})` : "Unknown",
             score: lp.score,
             isCompleted: lp.isCompleted,
-            completedLessons: lp.completedLessons.length,
             submittedAt: p.updatedAt
           });
         }
       }
     }
 
-    res.json({ success: true, data: rows });
+    // 2. Fetch Project Submissions
+    const projects = await Project.find({ 
+      mentor: req.user._id,
+      "submissions.status": "submitted"
+    })
+    .populate("submissions.student", "name email")
+    .populate("course", "title")
+    .lean();
+
+    const projectRows = [];
+    projects.forEach(p => {
+      p.submissions.forEach(s => {
+        if (s.status === "submitted") {
+          projectRows.push({
+            type: "project",
+            projectId: p._id,
+            submissionId: s._id,
+            student: s.student,
+            course: p.course || { title: p.title },
+            level: "Project Assignment",
+            score: s.aiProbability || 0, // AI authenticity score as indicator
+            isCompleted: false,
+            submittedAt: s.submittedAt,
+            description: s.description,
+            link: s.link
+          });
+        }
+      });
+    });
+
+    // Combine and sort by date descending
+    const allItems = [...quizRows, ...projectRows].sort((a, b) => 
+      new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+
+    res.json({ success: true, data: allItems });
   } catch (err) {
+    console.error("Review queue error:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -294,6 +332,25 @@ router.post("/lesson", guard, authorize("mentor"), async (req, res) => {
     const lesson = await Lesson.create({ title, description, content, videoUrl, order: order || 1, level: levelId, course: courseId, createdBy: req.user._id });
 
     logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor created lesson "${lesson.title}"` }).catch(() => { });
+
+    // Notify enrolled students about new lesson
+    try {
+      const { createNotification } = require("../controllers/notificationController");
+      const enrollments = await Progress.find({ course: courseId }).select("user");
+      for (const enrollment of enrollments) {
+        await createNotification({
+          userId: enrollment.user,
+          type: "announcement",
+          title: "New Lesson Added",
+          message: `A new lesson "${title}" has been added to your course.`,
+          link: "/roadmap",
+          icon: "book-open"
+        });
+      }
+    } catch (notifyErr) {
+      console.error("Failed to notify students of new lesson:", notifyErr);
+    }
+
     res.status(201).json({ success: true, data: lesson });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -334,6 +391,27 @@ router.post("/quiz", guard, authorize("mentor"), async (req, res) => {
       { upsert: true, new: true }
     );
     
+    // Notify enrolled students about quiz update
+    try {
+      const lesson = await Lesson.findById(lessonId).select("title course");
+      if (lesson) {
+        const { createNotification } = require("../controllers/notificationController");
+        const enrollments = await Progress.find({ course: lesson.course }).select("user");
+        for (const enrollment of enrollments) {
+          await createNotification({
+            userId: enrollment.user,
+            type: "announcement",
+            title: "Quiz Available",
+            message: `A new quiz is available for the lesson "${lesson.title}".`,
+            link: "/roadmap",
+            icon: "help-circle"
+          });
+        }
+      }
+    } catch (notifyErr) {
+      console.error("Failed to notify students of quiz update:", notifyErr);
+    }
+
     res.status(201).json({ success: true, data: quiz });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -458,14 +536,14 @@ router.post("/projects", guard, authorize("mentor"), async (req, res) => {
       course: courseId || undefined
     });
 
-    logActivity({ user: req.user._id, type: "LESSON_CREATED", message: `Mentor assigned project "${title}"` }).catch(() => { });
+    logActivity({ user: req.user._id, type: "PROJECT_ASSIGNED", message: `Mentor assigned project "${title}"` }).catch(() => { });
 
     // Notify each assigned student
-    const { createNotification } = require("./notificationController");
+    const { createNotification } = require("../controllers/notificationController");
     for (const studentId of assignedTo) {
       await createNotification({
         userId: studentId,
-        type: "info",
+        type: "project",
         title: "New Project Assigned",
         message: `Your mentor assigned you a new project: "${title}"`,
         link: "/projects",
@@ -560,10 +638,10 @@ router.put("/projects/:id/grade/:studentId", guard, authorize("mentor"), async (
     await project.save();
 
     // Notify student about grading
-    const { createNotification } = require("./notificationController");
+    const { createNotification } = require("../controllers/notificationController");
     await createNotification({
       userId: req.params.studentId,
-      type: "success",
+      type: "project",
       title: "Project Graded",
       message: `Your project "${project.title}" has been graded${grade ? `: ${grade}` : ""}`,
       link: "/projects",
@@ -612,19 +690,100 @@ router.put("/projects/:id/grade/:studentId", guard, authorize("mentor"), async (
 /* ── MENTOR PROFILE UPDATE ──────────────────────────────── */
 router.put("/profile", guard, authorize("mentor"), async (req, res) => {
   try {
-    const { name, skillTrack, experienceLevel, commitmentTime, learningStyle, learningGoal, bio } = req.body;
-    const updates = {};
-    if (name) updates.name = name;
-    if (skillTrack) updates["learningProfile.skillTrack"] = skillTrack;
-    if (experienceLevel) updates["learningProfile.experienceLevel"] = experienceLevel;
-    if (commitmentTime) updates["learningProfile.commitmentTime"] = commitmentTime;
-    if (learningStyle) updates["learningProfile.learningStyle"] = learningStyle;
-    if (learningGoal) updates["learningProfile.learningGoal"] = learningGoal;
-    if (bio) updates["learningProfile.personalGoal"] = bio;
+    const { name, skillTrack, experienceLevel, commitmentTime, learningStyle, learningGoal, bio, persona, emoji, tagline } = req.body;
+    
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    const updated = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select("-password");
-    res.json({ success: true, user: updated });
+    // Update basic info
+    if (name) user.name = name;
+
+    // Ensure learningProfile exists
+    if (!user.learningProfile) user.learningProfile = {};
+
+    // Update mentor-specific profile fields
+    if (skillTrack !== undefined) user.learningProfile.skillTrack = skillTrack;
+    if (experienceLevel !== undefined) user.learningProfile.experienceLevel = experienceLevel;
+    if (commitmentTime !== undefined) user.learningProfile.commitmentTime = commitmentTime;
+    if (learningStyle !== undefined) user.learningProfile.learningStyle = learningStyle;
+    if (learningGoal !== undefined) user.learningProfile.learningGoal = learningGoal;
+    if (bio !== undefined) user.learningProfile.personalGoal = bio; // Map bio to personalGoal for consistency
+    if (persona !== undefined) user.learningProfile.persona = persona;
+    if (emoji !== undefined) user.learningProfile.emoji = emoji;
+    if (tagline !== undefined) user.learningProfile.tagline = tagline;
+
+    await user.save();
+    res.json({ success: true, message: "Profile updated successfully", user });
   } catch (err) {
+    console.error("Profile update error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/* ── STUDENT PERFORMANCE OVERVIEW ───────────────────────── */
+router.get("/students-performance", guard, authorize("mentor"), async (req, res) => {
+  try {
+    const students = await User.find({ assignedMentor: req.user._id, role: "student" })
+      .select("name email learningProfile.skillTrack learningProfile.experienceLevel")
+      .lean();
+
+    const performanceData = [];
+
+    for (const student of students) {
+      const progresses = await Progress.find({ user: student._id }).populate("course", "title");
+      
+      let totalXP = 0;
+      let totalLessons = 0;
+      let totalScore = 0;
+      let quizCount = 0;
+      const courseStats = [];
+
+      progresses.forEach(p => {
+        totalXP += (p.xpEarned || 0);
+        let courseLessons = 0;
+        let courseScore = 0;
+        let courseQuizCount = 0;
+
+        p.levelsProgress.forEach(lp => {
+          courseLessons += lp.completedLessons.length;
+          if (lp.score > 0) {
+            courseScore += lp.score;
+            courseQuizCount++;
+          }
+        });
+
+        totalLessons += courseLessons;
+        totalScore += courseScore;
+        quizCount += courseQuizCount;
+
+        courseStats.push({
+          courseId: p.course?._id,
+          title: p.course?.title || "Unknown Course",
+          xp: p.xpEarned,
+          lessons: courseLessons,
+          avgScore: courseQuizCount > 0 ? Math.round(courseScore / courseQuizCount) : 0
+        });
+      });
+
+      performanceData.push({
+        _id: student._id,
+        name: student.name,
+        email: student.email,
+        track: student.learningProfile?.skillTrack,
+        level: student.learningProfile?.experienceLevel,
+        totalXP,
+        totalLessons,
+        avgQuizScore: quizCount > 0 ? Math.round(totalScore / quizCount) : 0,
+        courses: courseStats
+      });
+    }
+
+    // Sort by XP descending
+    performanceData.sort((a, b) => b.totalXP - a.totalXP);
+
+    res.json({ success: true, data: performanceData });
+  } catch (err) {
+    console.error("Performance overview error:", err);
     res.status(500).json({ message: err.message });
   }
 });

@@ -171,14 +171,14 @@ const MentorProjects = () => {
     }
   };
 
-  const handleGrade = async () => {
+  const handleGrade = async (status: "reviewed" | "revision_needed" = "reviewed") => {
     if (!gradingProject || !gradingStudent) return;
     setGrading(true);
     try {
       await api.put(`/mentor/projects/${gradingProject}/grade/${gradingStudent}`, {
-        grade, feedback, status: "reviewed"
+        grade, feedback, status
       });
-      toast({ title: "Graded!" });
+      toast({ title: status === "reviewed" ? "Graded!" : "Revision requested" });
       setGradingProject(null); setGradingStudent(null); setGrade(""); setFeedback("");
       fetchData();
     } catch (e: any) {
@@ -205,7 +205,7 @@ const MentorProjects = () => {
   return (
     <div className="min-h-screen relative bg-background text-white">
       <ParticlesBackground />
-      <DashboardTopNav userName={user?.name || "Mentor"} userEmail={user?.email || ""} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <DashboardTopNav userName={user?.name || "Mentor"} userEmail={user?.email || ""} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} role="mentor" avatarUrl={user?.avatarUrl} />
       <MentorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} userName={user?.name} userEmail={user?.email} onSignOut={handleSignOut} />
 
       <main className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-5xl mx-auto transition-all duration-300 ${sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"}`}>
@@ -560,10 +560,13 @@ const MentorProjects = () => {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-5">
-                  <GlassButton variant="primary" onClick={handleGrade} disabled={grading} className="flex-1">
+                  <GlassButton variant="primary" onClick={() => handleGrade("reviewed")} disabled={grading} className="flex-1">
                     {grading ? "Saving..." : "Submit Grade"}
                   </GlassButton>
-                  <GlassButton variant="secondary" onClick={() => setGradingProject(null)}>Cancel</GlassButton>
+                  <GlassButton variant="secondary" onClick={() => handleGrade("revision_needed")} disabled={grading} className="flex-1">
+                    Request Revision
+                  </GlassButton>
+                  <GlassButton variant="ghost" onClick={() => setGradingProject(null)}>Cancel</GlassButton>
                 </div>
               </GlassCard>
             </motion.div>

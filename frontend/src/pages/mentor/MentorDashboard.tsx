@@ -8,13 +8,14 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import {
   Users, BookOpen, Calendar, Star, Activity,
-  CheckCircle2, Clock, Plus, ChevronRight
+  CheckCircle2, Clock, Plus, ChevronRight, Upload, X, File, ExternalLink
 } from "lucide-react";
 import {
   ResponsiveContainer, Tooltip, XAxis, AreaChart, Area,
 } from "recharts";
 import { motion } from "framer-motion";
 import { ParticlesBackground } from "@/components/landing/ParticlesBackground";
+import { useToast } from "@/hooks/use-toast";
 
 const MentorDashboard = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ const MentorDashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const { toast } = useToast();
   const [students, setStudents] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
@@ -41,16 +43,37 @@ const MentorDashboard = () => {
   const [selectedLevelId, setSelectedLevelId] = useState("");
   const [savingLesson, setSavingLesson] = useState(false);
   const [lessonError, setLessonError] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) { navigate("/auth"); return; }
 
-    // Initialize socket for real-time notifications
-    initSocket();
-
     fetchAll();
+
+    const interval = setInterval(checkSessionReminders, 60000); // Check every minute
+    return () => {
+      disconnectSocket();
+      clearInterval(interval);
+    };
   }, [navigate]);
+
+  const checkSessionReminders = () => {
+    if (upcomingSessions.length === 0) return;
+    const now = Date.now();
+    upcomingSessions.forEach(s => {
+      const sessionTime = new Date(s.date).getTime();
+      const diff = sessionTime - now;
+      // If session is in 15 mins (allowing 1 min buffer)
+      if (diff > 0 && diff <= 15 * 60 * 1000 && diff > 14 * 60 * 1000) {
+        toast({
+          title: "Upcoming Session",
+          description: `You have a session with ${s.studentId?.name} in 15 minutes!`,
+          variant: "default",
+        });
+      }
+    });
+  };
 
   const fetchAll = async () => {
     try {
@@ -104,7 +127,7 @@ const MentorDashboard = () => {
     }
     setSavingLesson(true);
     try {
-      await api.post("/mentor/lesson", {
+      const res = await api.post("/mentor/lesson", {
         title: lessonTitle.trim(),
         description: lessonDesc.trim(),
         content: lessonContent.trim(),
@@ -113,9 +136,26 @@ const MentorDashboard = () => {
         levelId: selectedLevelId,
         courseId: selectedCourseId
       });
+
+      const newLesson = res.data.data;
+
+      // Handle file uploads if any
+      if (selectedFiles && selectedFiles.length > 0) {
+        const formData = new FormData();
+        Array.from(selectedFiles).forEach(file => {
+          formData.append("files", file);
+        });
+        
+        await api.post(`/mentor/lesson/${newLesson._id}/upload`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+      }
+
       setShowLessonModal(false);
       setLessonTitle(""); setLessonDesc(""); setLessonContent("");
       setLessonVideoUrl(""); setSelectedCourseId(""); setSelectedLevelId("");
+      setSelectedFiles(null);
+      fetchAll(); // Refresh stats/data
     } catch (e: any) {
       setLessonError(e.response?.data?.message || "Failed to create lesson");
     } finally {
@@ -149,6 +189,8 @@ const MentorDashboard = () => {
         userEmail={userEmail}
         onSignOut={handleSignOut}
         onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        role="mentor"
+        avatarUrl={user?.avatarUrl}
       />
       <MentorSidebar
         isOpen={sidebarOpen}
@@ -262,6 +304,43 @@ const MentorDashboard = () => {
                   </div>
                 )}
               </div>
+
+              {/* Quick Upcoming Sessions */}
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold">Upcoming Sessions</h4>
+                  <button onClick={() => setActiveTab("sessions")} className="text-[10px] text-primary hover:underline">View All</button>
+                </div>
+                {upcomingSessions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No sessions scheduled</p>
+                ) : (
+                  <div className="space-y-3">
+                    {upcomingSessions.slice(0, 2).map(s => {
+                      const sessionTime = new Date(s.date);
+                      const isLive = Math.abs(sessionTime.getTime() - Date.now()) <= 15 * 60 * 1000;
+                      return (
+                        <div key={s._id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                              {s.studentId?.name?.[0]}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold">{s.studentId?.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{sessionTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => navigate(`/sessions/${s._id}`)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${isLive ? 'bg-primary text-black animate-pulse' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                            {isLive ? 'Join Now' : 'Details'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </GlassCard>
           </motion.div>
         )}
@@ -290,7 +369,16 @@ const MentorDashboard = () => {
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">Scheduled</span>
+                    <div className="flex items-center gap-3">
+                      {Math.abs(new Date(session.date).getTime() - Date.now()) <= 15 * 60 * 1000 && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-[10px] font-bold animate-pulse">
+                          <Activity size={10} /> LIVE NOW
+                        </div>
+                      )}
+                      <GlassButton variant="primary" size="sm" onClick={() => navigate(`/sessions/${session._id}`)}>
+                        <ExternalLink size={12} className="mr-1" /> Details
+                      </GlassButton>
+                    </div>
                   </div>
                 </GlassCard>
               ))
@@ -423,6 +511,33 @@ const MentorDashboard = () => {
                 <div>
                   <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Order</label>
                   <input type="number" value={lessonOrder} onChange={e => setLessonOrder(Number(e.target.value))} min={1} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">Attachments (PDF, Docs, etc.)</label>
+                <div className="flex items-center gap-4">
+                  <GlassButton variant="secondary" size="sm" onClick={() => document.getElementById('lesson-files')?.click()} className="flex items-center gap-2">
+                    <Upload size={14} /> Select Files
+                  </GlassButton>
+                  <input 
+                    id="lesson-files"
+                    type="file" 
+                    multiple 
+                    className="hidden" 
+                    onChange={e => setSelectedFiles(e.target.files)}
+                  />
+                  {selectedFiles && selectedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(selectedFiles).map((file, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-primary/10 text-primary px-2 py-1 rounded-lg text-[10px] font-bold">
+                          <File size={10} /> {file.name.substring(0, 15)}...
+                        </div>
+                      ))}
+                      <button onClick={() => setSelectedFiles(null)} className="p-1 hover:bg-red-500/10 text-red-400 rounded-full">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

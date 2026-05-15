@@ -140,7 +140,7 @@ router.post("/my-projects/:id/submit", guard, async (req, res) => {
     const { createNotification } = require("../controllers/notificationController");
     await createNotification({
       userId: project.mentor,
-      type: "info",
+      type: "project",
       title: "Project Submitted",
       message: `${req.user.name} submitted the project "${project.title}" (AI Analyzed)`,
       link: "/mentor/projects",

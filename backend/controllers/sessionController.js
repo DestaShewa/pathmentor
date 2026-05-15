@@ -66,7 +66,7 @@ const bookSession = asyncHandler(async (req, res) => {
   const { createNotification } = require("./notificationController");
   await createNotification({
     userId: mentorId,
-    type: "info",
+    type: "session",
     title: "New Session Booked",
     message: `${req.user.name} has booked a session with you on ${formatSessionDate(sessionDate)} at ${formatSessionTime(sessionDate)} UTC (will display in your local timezone)`,
     link: "/mentor/sessions",
@@ -137,7 +137,7 @@ const completeSession = asyncHandler(async (req, res) => {
   const { createNotification } = require("./notificationController");
   await createNotification({
     userId: session.studentId,
-    type: "success",
+    type: "session",
     title: "Session Completed",
     message: "Your mentor has marked the session as complete. Please rate your experience!",
     link: "/sessions",
@@ -241,7 +241,7 @@ const postponeSession = asyncHandler(async (req, res) => {
   const { newDate } = req.body;
   if (!newDate) return res.status(400).json({ message: "New date is required" });
 
-  const session = await Session.findById(req.params.id);
+  const session = await Session.findById(req.params.id).populate("studentId", "name email");
   if (!session) return res.status(404).json({ message: "Session not found" });
 
   // Only mentor can postpone
@@ -273,11 +273,13 @@ const postponeSession = asyncHandler(async (req, res) => {
   session.date = newSessionDate;
   await session.save();
 
+  logActivity({ user: req.user._id, type: "SESSION_POSTPONED", message: `Mentor postponed session with ${session.studentId.name} to ${formatSessionDate(newSessionDate)}` }).catch(() => {});
+
   // Notify student about postponement
   const { createNotification } = require("./notificationController");
   await createNotification({
     userId: session.studentId,
-    type: "info",
+    type: "session",
     title: "Session Postponed",
     message: `Your session has been rescheduled to ${formatSessionDate(newSessionDate)} at ${formatSessionTime(newSessionDate)} UTC (will display in your local timezone)`,
     link: "/sessions",
@@ -326,7 +328,7 @@ const mentorBookSession = asyncHandler(async (req, res) => {
   const { createNotification } = require("./notificationController");
   await createNotification({
     userId: studentId,
-    type: "info",
+    type: "session",
     title: "Session Scheduled",
     message: `Your mentor scheduled a session on ${formatSessionDate(sessionDate)} at ${formatSessionTime(sessionDate)} UTC (will display in your local timezone)`,
     link: "/sessions",

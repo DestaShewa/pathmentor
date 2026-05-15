@@ -46,6 +46,7 @@ import MentorAnnouncements from "./pages/mentor/MentorAnnouncements";
 import MentorProjects from "./pages/mentor/MentorProjects";
 import MentorSettings from "./pages/mentor/MentorSettings";
 import MentorChat from "./pages/mentor/MentorChat";
+import StudentPerformance from "./pages/mentor/StudentPerformance";
 
 // Admin Pages
 import AdminLayout from "./pages/admin/AdminLayout";
@@ -148,6 +149,7 @@ const App = () => {
             <Route path="/mentor/class/:id" element={<AuthGuard allowedRoles={["mentor"]}><MentorClassDetails /></AuthGuard>} />
             <Route path="/mentor/upload/:id" element={<AuthGuard allowedRoles={["mentor"]}><ClassUpload /></AuthGuard>} />
             <Route path="/mentor/analysis/:id" element={<AuthGuard allowedRoles={["mentor"]}><MentorCourseAnalysis /></AuthGuard>} />
+            <Route path="/mentor/performance" element={<AuthGuard allowedRoles={["mentor"]}><StudentPerformance /></AuthGuard>} />
 
             {/* ADMIN DASHBOARD - Protected */}
             <Route path="/admin" element={<AuthGuard allowedRoles={["admin"]}><AdminLayout /></AuthGuard>}>

@@ -8,7 +8,7 @@ import { MentorSidebar } from "@/components/mentor/MentorSidebar";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, User, CheckCircle2, X, Star, MessageSquare, Video, CalendarClock, RefreshCw } from "lucide-react";
+import { Calendar, Clock, User, CheckCircle2, X, Star, MessageSquare, Video, CalendarClock, RefreshCw, ExternalLink } from "lucide-react";
 
 // Convert datetime-local input value to ISO UTC string
 const convertLocalToUTC = (localDatetimeString: string): string => {
@@ -268,6 +268,14 @@ const MentorSessions = () => {
                           <span className="flex items-center gap-1"><Calendar size={11} /> {new Date(session.date).toLocaleDateString()}</span>
                           <span className="flex items-center gap-1"><Clock size={11} /> {new Date(session.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                         </div>
+                        {session.status === "scheduled" && (
+                          <div className="mt-2 flex items-center gap-2">
+                             <div className={`w-2 h-2 rounded-full ${canJoinSession(session.date) ? 'bg-green-500 animate-pulse' : 'bg-blue-500/50'}`} />
+                             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                               {canJoinSession(session.date) ? "Live Now" : "Scheduled"}
+                             </span>
+                          </div>
+                        )}
                         {session.summary && <p className="text-xs text-muted-foreground mt-1.5 italic">"{session.summary}"</p>}
                         {session.studentRating && (
                           <div className="flex items-center gap-1 mt-1.5">
@@ -286,21 +294,15 @@ const MentorSessions = () => {
                       {session.status === "scheduled" && (
                         <div className="flex flex-col gap-2">
                           {/* Join button - only available 15 min before until 60 min after */}
-                          {canJoinSession(session.date) ? (
-                            <button
-                              onClick={() => {
-                                if (session.meetingLink) {
-                                  window.open(session.meetingLink, "_blank");
-                                } else {
-                                  navigate(`/room/${session._id}`);
-                                }
-                              }}
-                              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl bg-primary text-black hover:bg-primary/90 transition-all whitespace-nowrap"
-                            >
-                              <Video size={13} /> Join Session
-                            </button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {/* View Details / Join button */}
+                          <button
+                            onClick={() => navigate(`/sessions/${session._id}`)}
+                            className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl bg-primary text-black hover:bg-primary/90 transition-all whitespace-nowrap"
+                          >
+                            <ExternalLink size={13} /> View Details
+                          </button>
+                          {!canJoinSession(session.date) && (
+                            <span className="text-[10px] text-muted-foreground text-center">
                               {getTimeUntilSession(session.date)}
                             </span>
                           )}

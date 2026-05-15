@@ -9,7 +9,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import {
   BookOpen, Users, Upload, ChevronRight,
-  RefreshCw, Layers, Trophy, Plus
+  RefreshCw, Layers, Trophy, Plus, BarChart3
 } from "lucide-react";
 
 interface Course {
@@ -70,12 +70,7 @@ const MyClasses = () => {
   return (
     <div className="min-h-screen relative bg-background text-white">
       <ParticlesBackground />
-      <DashboardTopNav
-        userName={user?.name || "Mentor"}
-        userEmail={user?.email || ""}
-        onSignOut={handleSignOut}
-        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-      />
+      <DashboardTopNav userName={user?.name || "Mentor"} userEmail={user?.email || ""} onSignOut={handleSignOut} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} role="mentor" avatarUrl={user?.avatarUrl} />
       <MentorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isCollapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} userName={user?.name} userEmail={user?.email} onSignOut={handleSignOut} />
 
       <main className={`relative z-10 pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto transition-all duration-300 ${sidebarCollapsed ? "lg:pl-28" : "lg:pl-72"}`}>
@@ -171,18 +166,24 @@ const MyClasses = () => {
                       </div>
 
                       {/* Actions */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <button
                           onClick={() => navigate(`/mentor/class/${course._id}`)}
-                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all text-xs font-bold"
+                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all text-[10px] font-bold"
                         >
-                          <ChevronRight size={16} /> View
+                          <ChevronRight size={14} /> View
                         </button>
                         <button
                           onClick={() => navigate(`/mentor/upload/${course._id}`)}
-                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold"
+                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-all text-[10px] font-bold"
                         >
-                          <Upload size={16} /> Upload
+                          <Upload size={14} /> Upload
+                        </button>
+                        <button
+                          onClick={() => navigate(`/mentor/analysis/${course._id}`)}
+                          className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-all text-[10px] font-bold"
+                        >
+                          <BarChart3 size={14} /> Analysis
                         </button>
                       </div>
                     </div>
